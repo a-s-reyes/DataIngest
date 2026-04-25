@@ -49,209 +49,21 @@ uv run dataingest run \
 
 Each stage is pluggable via a small `Protocol`. New formats and backends extend the engine without touching the core.
 
-A mapping declares the source format, the target table, and the per-field cleaning and validation rules. Three example mappings ship in `mappings/`:
+## Mappings
 
-### Example 1 — Flight test telemetry
+A mapping is a YAML file describing one input shape: the source format, the target table, and the per-field type, required-flag, default, and cleaner chain. The pipeline reads the mapping, builds a Pydantic row model from it, runs each row through the declared cleaners, validates against the model, and writes the survivors to the sink. Failed rows go to the JSONL error log with the offending field, value, and rule.
 
-Sensor channel readings exported from a data acquisition system. Wide variety of channels (accelerometers, gyros, temperatures, pressures); ISO-8601 timestamps; decimal values with mixed precision.
+Onboarding a new input shape means writing a new YAML file and pointing `--mapping` at it. No Python changes, no recompile, no plugin registration.
 
-```yaml
-spec_version: 1
-name: flight-test-telemetry
-description: Sensor channel readings exported from a flight test data acquisition system.
+Three reference mappings ship in [`mappings/`](mappings/):
 
-source:
-  format: csv
-  encoding: utf-8
-  header: true
-  delimiter: ","
+| File | Shape | Notable fields |
+|---|---|---|
+| `telemetry.yml` | Flight test telemetry | ISO-8601 timestamps, decimal sensor values, channel name normalization |
+| `qualification.yml` | Component qualification test results | MM/DD/YYYY dates, measured-value vs. tolerance pairs, PASS/FAIL result |
+| `parts_inventory.yml` | Parts master / NSN inventory | String identifiers, integer quantities, ISO-8601 audit dates |
 
-target:
-  table: telemetry_records
-  primary_key: record_id
-  on_conflict: skip
-
-fields:
-  record_id:
-    column: 0
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  flight_id:
-    column: 1
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  recorded_at:
-    column: 2
-    type: str
-    required: true
-    cleaners: [strip]
-
-  channel:
-    column: 3
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  value:
-    column: 4
-    type: decimal
-    required: true
-    cleaners: [strip, parse_decimal]
-
-  unit:
-    column: 5
-    type: str
-    required: true
-    cleaners: [strip]
-
-  quality:
-    column: 6
-    type: str
-    cleaners: [strip, upper]
-    default: "OK"
-```
-
-### Example 2 — Component qualification test results
-
-One row per measured parameter per qualification run. Pairs `measured_value` against `tolerance` and stores a `PASS`/`FAIL` result. Dates arrive in `MM/DD/YYYY`.
-
-```yaml
-spec_version: 1
-name: component-qualification-tests
-description: Component qualification test results — one row per measured parameter per run.
-
-source:
-  format: csv
-  encoding: utf-8
-  header: true
-  delimiter: ","
-
-target:
-  table: qualification_results
-  primary_key: test_id
-  on_conflict: skip
-
-fields:
-  test_id:
-    column: 0
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  part_number:
-    column: 1
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  run_date:
-    column: 2
-    type: date
-    required: true
-    cleaners: [strip, parse_date_us]
-
-  parameter:
-    column: 3
-    type: str
-    required: true
-    cleaners: [strip, remove_extra_whitespace, upper]
-
-  measured_value:
-    column: 4
-    type: decimal
-    required: true
-    cleaners: [strip, parse_decimal]
-
-  tolerance:
-    column: 5
-    type: decimal
-    required: true
-    cleaners: [strip, parse_decimal]
-
-  result:
-    column: 6
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  technician:
-    column: 7
-    type: str
-    cleaners: [strip, remove_extra_whitespace]
-```
-
-### Example 3 — Parts inventory
-
-Parts master export keyed on National Stock Number. Mixes string identifiers, integer quantities, and ISO-8601 audit dates.
-
-```yaml
-spec_version: 1
-name: parts-inventory
-description: Parts master export with stock numbers, lot codes, and condition codes.
-
-source:
-  format: csv
-  encoding: utf-8
-  header: true
-  delimiter: ","
-
-target:
-  table: parts_inventory
-  primary_key: nsn
-  on_conflict: skip
-
-fields:
-  nsn:
-    column: 0
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  part_number:
-    column: 1
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  lot_code:
-    column: 2
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  description:
-    column: 3
-    type: str
-    cleaners: [strip, remove_extra_whitespace]
-
-  qty_on_hand:
-    column: 4
-    type: int
-    required: true
-    cleaners: [strip]
-
-  unit_of_issue:
-    column: 5
-    type: str
-    cleaners: [strip, upper]
-    default: "EA"
-
-  condition_code:
-    column: 6
-    type: str
-    required: true
-    cleaners: [strip, upper]
-
-  last_audit:
-    column: 7
-    type: date
-    required: true
-    cleaners: [strip, parse_date_iso]
-```
+Each has a matching synthetic 20-row CSV under `tests/fixtures/`. Read any of the YAML files for the full shape — they're the schema documentation.
 
 ## Built-in cleaners
 
