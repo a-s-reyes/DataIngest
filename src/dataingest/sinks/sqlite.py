@@ -1,4 +1,3 @@
-import re
 import types
 import typing
 from collections.abc import Iterable
@@ -23,6 +22,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
 
 from ..manifest import MANIFEST_TABLE_NAME, RunManifest
+from ..uri import resolve_uri_path
 from . import register
 
 _TYPE_TO_SQLA: dict[type, type] = {
@@ -45,22 +45,6 @@ def _unwrap_optional(annotation: Any) -> Any:
     return annotation
 
 
-def _resolve_path(uri_path: str) -> str:
-    """Turn a URI path into a SQLAlchemy-friendly absolute or relative path.
-
-    ``/./out.db`` (relative) → ``./out.db``
-    ``//tmp/out.db`` (POSIX absolute) → ``/tmp/out.db``
-    ``/C:/data/out.db`` (Windows absolute) → ``C:/data/out.db``
-    """
-    if re.match(r"^/[A-Za-z]:[/\\]", uri_path):
-        return uri_path[1:]
-    if uri_path.startswith("/./"):
-        return uri_path[1:]
-    if uri_path.startswith("//"):
-        return uri_path[1:]
-    return uri_path
-
-
 @register("sqlite")
 class SqliteSink:
     """Writes rows to a SQLite database via SQLAlchemy 2.0 Core.
@@ -70,7 +54,7 @@ class SqliteSink:
     """
 
     def __init__(self, path: str, params: dict[str, str]) -> None:
-        self.fs_path = _resolve_path(path)
+        self.fs_path = resolve_uri_path(path)
         self.params = params
         self.engine: Engine | None = None
         self.table: Table | None = None

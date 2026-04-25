@@ -1,21 +1,10 @@
 import csv as _csv
-import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from ..uri import resolve_uri_path
 from . import register
-
-
-def _resolve_path(uri_path: str) -> Path:
-    """Convert a URI path to a usable filesystem Path.
-
-    On Windows, urlparse turns ``csv:///C:/data/x.csv`` into ``/C:/data/x.csv``.
-    Strip the leading slash when followed by a drive letter.
-    """
-    if re.match(r"^/[A-Za-z]:[/\\]", uri_path):
-        return Path(uri_path[1:])
-    return Path(uri_path)
 
 
 @register("csv")
@@ -27,7 +16,7 @@ class CsvSource:
     """
 
     def __init__(self, path: str, params: dict[str, str]) -> None:
-        self.path = _resolve_path(path)
+        self.path = Path(resolve_uri_path(path))
         self.encoding = params.get("encoding", "utf-8")
         self.delimiter = params.get("delimiter", ",")
         self.has_header = params.get("header", "true").lower() in ("true", "1", "yes")

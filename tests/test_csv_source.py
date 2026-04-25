@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from dataingest.sources.csv import CsvSource
+from dataingest.uri import parse
 
 from .conftest import MappingFixture
 
@@ -36,3 +39,19 @@ def test_custom_delimiter(tmp_path: Path) -> None:
     rows = list(src.rows())
     assert rows[0]["name"] == "foo"
     assert rows[1]["value"] == "2"
+
+
+def test_relative_csv_uri_resolves_against_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: ``csv:///./file.csv`` used to fail because CsvSource only
+    handled the Windows drive-letter URI shape. Three-slash relative URIs are
+    legal per the same SQLAlchemy convention SqliteSink already followed."""
+    raw = tmp_path / "data.csv"
+    raw.write_text("a,b\n1,2\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    parsed = parse("csv:///./data.csv")
+    src = CsvSource(parsed.path, parsed.params)
+    rows = list(src.rows())
+    assert rows == [{"0": "1", "1": "2", "a": "1", "b": "2"}]
