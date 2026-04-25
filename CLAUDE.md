@@ -26,6 +26,10 @@ Local-only design notes live in `plan/` (gitignored): `00-master-plan.md` for ar
 
 **Tier 1 complete:** T1.1 chunked streaming writes ✅, T1.2 GitHub Actions CI ✅, T1.3 mypy strict clean ✅, T1.4 coverage gate at 80% ✅, T1.5 run manifest ✅.
 
-**Tier 2 (work-tool capability):** T2.1 xlsx source ✅, T2.2 datetime field type ✅, T2.3 parameterized cleaners ✅, T2.4 parse_int cleaner ✅, T2.5 postgres sink with full upsert ✅, T2.6 CLI ergonomics (verbosity, quiet, structured exit codes, --errors -) ✅. **T2.5b (mssql sink) is the only outstanding Tier 2 item — carved out as a follow-up against the user's DRMS test SQL Server.**
+**Tier 2 (work-tool capability):** T2.1 xlsx source ✅, T2.2 datetime field type ✅, T2.3 parameterized cleaners ✅, T2.4 parse_int cleaner ✅, T2.5 postgres sink with full upsert ✅, T2.6 CLI ergonomics ✅. T2.5b (mssql sink) carved out — explicitly deferred per user direction.
+
+**Tier 3 (portfolio polish) shipped:** T3.1 ARCHITECTURE.md ✅, T3.2 `dataingest infer` ✅, T3.3 `dataingest tables` ✅, T3.4 plugin entry points via `importlib.metadata` ✅, T3.5 badges + README demo session ✅ (asciinema cast remains a manual user step).
+
+**Project status:** production-ready, portfolio-polished, 183 tests passing (+8 postgres-skipped without env var), 90%+ coverage, mypy strict clean, full CI on every push.
 
 **Deferred:** `xlsx://` and `json://` sources, `replace` conflict mode (full upsert), Postgres / SQL Server sinks, plugin entry points, schema inference, parameterized cleaners — all scheduled in the roadmap.

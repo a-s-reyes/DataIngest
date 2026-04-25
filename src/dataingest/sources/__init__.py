@@ -29,5 +29,10 @@ def get(scheme: str) -> type:
     return REGISTRY[scheme]
 
 
+from .._plugins import load_entry_points  # noqa: E402
 from . import csv as _csv  # noqa: F401, E402  -- triggers registration
 from . import xlsx as _xlsx  # noqa: F401, E402  -- triggers registration (lazy openpyxl import)
+
+# Third-party plugins via the ``dataingest.sources`` entry-point group.
+# Built-ins above always win.
+load_entry_points("dataingest.sources", REGISTRY)

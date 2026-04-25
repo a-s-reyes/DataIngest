@@ -9,6 +9,8 @@
 
 DataIngest takes messy tabular files (CSV today, Excel/JSON next), runs them through a YAML-declared validation and cleaning pipeline, and loads them into a SQL database. Onboarding a new file format does not mean writing Python — it means writing a YAML file.
 
+For implementation details and how to extend the engine, read [ARCHITECTURE.md](ARCHITECTURE.md).
+
 It is domain-agnostic by design. The shipped reference mappings cover three different shapes of real engineering data:
 
 - **Flight test telemetry** (`mappings/telemetry.yml`) — sensor channel readings with ISO timestamps
@@ -89,6 +91,33 @@ Cleaners compose via the `cleaners:` list in the YAML mapping — they run left-
 ```
 dataingest run        Run a full ingestion pipeline
 dataingest validate   Validate a YAML mapping file
+dataingest infer      Sniff a CSV and emit a starter mapping YAML
+dataingest tables     Inspect a sink: list tables and recent run history
+dataingest version    Print the DataIngest version
+```
+
+### Demo session
+
+```text
+$ dataingest infer data.csv -o mappings/data.yml
+wrote mappings/data.yml (4 fields)
+
+$ dataingest validate mappings/data.yml
+OK: mappings/data.yml (name=data, fields=4)
+
+$ dataingest run --source csv:///./data.csv --sink sqlite:///./out.db --mapping mappings/data.yml
+rows_in=1247 ok=1245 failed=2 chunks=2 run_id=6b54cec8-079e-4dd9-864e-5af2e6f0d4bc
+
+$ dataingest tables sqlite:///./out.db
+sink: sqlite:///./out.db
+
+  TABLE              ROWS
+  ----------------  -----
+  _dataingest_runs      1
+  data               1245
+
+recent runs (last 1):
+  2026-04-25T...  6b54cec8  partial   in=1247 ok=1245 failed=2  (data)
 ```
 
 Common flags on `run`:

@@ -256,6 +256,60 @@ def test_errors_dash_streams_to_stderr(qualification: MappingFixture, tmp_path: 
 # --- --verbose (T2.6) ---
 
 
+def test_infer_stdout_emits_runnable_yaml(tmp_path: Path) -> None:
+    csv = tmp_path / "things.csv"
+    csv.write_text("id,name,amount\nA,alpha,1.5\nB,beta,2.75\n", encoding="utf-8")
+    result = runner.invoke(app, ["infer", str(csv)])
+    assert result.exit_code == EXIT_OK
+    assert "spec_version: 1" in result.stdout
+    assert "name: things" in result.stdout
+    assert "primary_key: id" in result.stdout
+
+
+def test_infer_writes_to_output_file(tmp_path: Path) -> None:
+    csv = tmp_path / "things.csv"
+    csv.write_text("id,name\nA,alpha\nB,beta\n", encoding="utf-8")
+    out = tmp_path / "out.yml"
+    result = runner.invoke(app, ["infer", str(csv), "-o", str(out)])
+    assert result.exit_code == EXIT_OK
+    assert out.exists()
+    assert "spec_version: 1" in out.read_text(encoding="utf-8")
+
+
+def test_infer_missing_file_exits_one(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["infer", str(tmp_path / "no_such.csv")])
+    assert result.exit_code == EXIT_PREFLIGHT_ERROR
+
+
+# --- tables (T3.3) ---
+
+
+def test_tables_lists_data_and_manifest(telemetry: MappingFixture, tmp_path: Path) -> None:
+    """End-to-end: run a pipeline, then `tables` shows the resulting tables + run."""
+    from dataingest.config import Mapping
+    from dataingest.pipeline import Pipeline
+
+    db_path = tmp_path / "out.db"
+    Pipeline(
+        source_uri=f"csv:///{telemetry.csv.as_posix()}",
+        sink_uri=f"sqlite:///{db_path.as_posix()}",
+        mapping=Mapping.from_yaml(telemetry.mapping_yml),
+        error_log=tmp_path / "errors.jsonl",
+    ).run()
+
+    result = runner.invoke(app, ["tables", f"sqlite:///{db_path.as_posix()}"])
+    assert result.exit_code == EXIT_OK
+    assert "telemetry_records" in result.stdout
+    assert "_dataingest_runs" in result.stdout
+    assert "20" in result.stdout
+    assert "recent runs" in result.stdout
+
+
+def test_tables_unknown_scheme_exits_one() -> None:
+    result = runner.invoke(app, ["tables", "bogus:///nowhere"])
+    assert result.exit_code == EXIT_PREFLIGHT_ERROR
+
+
 def test_verbose_emits_pipeline_log_lines(telemetry: MappingFixture, tmp_path: Path) -> None:
     result = runner.invoke(
         app,
