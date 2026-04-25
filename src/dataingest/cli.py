@@ -155,7 +155,7 @@ def validate(
 
 @app.command()
 def infer(
-    csv_file: Annotated[Path, typer.Argument(help="Path to the CSV to inspect")],
+    file: Annotated[Path, typer.Argument(help="Path to the CSV or .xlsx to inspect")],
     output: Annotated[
         Path | None,
         typer.Option(
@@ -174,12 +174,16 @@ def infer(
     ] = DEFAULT_SAMPLE_SIZE,
     delimiter: Annotated[
         str,
-        typer.Option(help="CSV delimiter (default: ',')"),
+        typer.Option(help="CSV delimiter (csv only, default: ',')"),
     ] = ",",
     encoding: Annotated[
         str,
-        typer.Option(help="File encoding (default: utf-8)"),
+        typer.Option(help="File encoding (csv only, default: utf-8)"),
     ] = "utf-8",
+    sheet: Annotated[
+        str | None,
+        typer.Option(help="xlsx sheet name to sample (default: first sheet)"),
+    ] = None,
     name: Annotated[
         str | None,
         typer.Option(help="Mapping name (default: filename stem)"),
@@ -189,12 +193,13 @@ def infer(
         typer.Option(help="Target table name (default: filename stem)"),
     ] = None,
 ) -> None:
-    """Sniff a CSV and emit a starter YAML mapping.
+    """Sniff a CSV or .xlsx and emit a starter YAML mapping.
 
-    The output is a runnable mapping that you should review and tighten —
-    types and cleaners are inferred from the first N rows, primary key is
-    the first column with all-unique non-null values, and ``on_conflict``
-    defaults to ``skip``.
+    Format autodetected from the file extension (``.xlsx`` / ``.xlsm`` ->
+    xlsx, everything else -> csv). The output is a runnable mapping that
+    you should review and tighten — types and cleaners are inferred from
+    the first N rows, primary key is the first column with all-unique
+    non-null values, and ``on_conflict`` defaults to ``skip``.
 
     Pipe the output to a file:
 
@@ -202,16 +207,17 @@ def infer(
 
     Or write directly:
 
-        dataingest infer data.csv -o mappings/data.yml
+        dataingest infer data.xlsx -o mappings/data.yml --sheet Bills
     """
     try:
         mapping = infer_mapping(
-            csv_file,
+            file,
             name=name,
             table=table,
             sample_size=sample_size,
             delimiter=delimiter,
             encoding=encoding,
+            sheet=sheet,
         )
     except (FileNotFoundError, ValueError) as err:
         typer.echo(f"error: {err}", err=True)

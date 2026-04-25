@@ -107,7 +107,7 @@ def _infer_column(samples: list[str]) -> tuple[InferredType, str]:
     return ("str", "str")
 
 
-def _read_samples(
+def _read_samples_csv(
     path: Path,
     sample_size: int = DEFAULT_SAMPLE_SIZE,
     delimiter: str = ",",
@@ -125,6 +125,42 @@ def _read_samples(
     return header, rows
 
 
+def _read_samples_xlsx(
+    path: Path,
+    sample_size: int = DEFAULT_SAMPLE_SIZE,
+    sheet: str | None = None,
+) -> tuple[list[str], list[list[str]]]:
+    """Read header + up to ``sample_size`` data rows from an .xlsx workbook.
+
+    Native cell types (int, float, datetime) are stringified at read time so
+    the same type-classifier helpers work for both csv and xlsx inputs.
+    """
+    import openpyxl
+
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    try:
+        ws = wb[sheet] if sheet else wb.active
+        if ws is None:
+            return [], []
+        rows_iter = ws.iter_rows(values_only=True)
+        first = next(rows_iter, None)
+        if first is None:
+            return [], []
+        header = [str(h) if h is not None else "" for h in first]
+        samples: list[list[str]] = []
+        for i, raw in enumerate(rows_iter):
+            if i >= sample_size:
+                break
+            samples.append(["" if v is None else str(v) for v in raw])
+        return header, samples
+    finally:
+        wb.close()
+
+
+def _detect_format(path: Path) -> Literal["csv", "xlsx"]:
+    return "xlsx" if path.suffix.lower() in (".xlsx", ".xlsm") else "csv"
+
+
 def _pick_primary_key(headers: list[str], rows: list[list[str]]) -> str | None:
     """First column where every sampled value is non-empty and unique."""
     for col_idx, name in enumerate(headers):
@@ -137,18 +173,40 @@ def _pick_primary_key(headers: list[str], rows: list[list[str]]) -> str | None:
 
 
 def infer_mapping(
-    csv_path: Path,
+    path: Path,
     *,
     name: str | None = None,
     table: str | None = None,
     sample_size: int = DEFAULT_SAMPLE_SIZE,
     delimiter: str = ",",
     encoding: str = "utf-8",
+    sheet: str | None = None,
+    format: Literal["csv", "xlsx"] | None = None,
 ) -> dict[str, Any]:
-    """Sniff a CSV and return a mapping dict suitable for ``yaml.safe_dump``."""
-    header, rows = _read_samples(csv_path, sample_size, delimiter, encoding)
+    """Sniff a tabular file and return a mapping dict.
+
+    ``format`` defaults to autodetection from the file extension
+    (``.xlsx`` / ``.xlsm`` -> xlsx, everything else -> csv). Override
+    explicitly when the extension is misleading.
+    """
+    fmt = format or _detect_format(path)
+    if fmt == "xlsx":
+        # ``sheet`` only steers which sheet we *sample* during inference.
+        # The runtime sheet selection happens via URI param (xlsx:///...?sheet=X),
+        # not the mapping — so we do not echo it back into the output YAML.
+        header, rows = _read_samples_xlsx(path, sample_size, sheet)
+        source_block: dict[str, Any] = {"format": "xlsx", "header": True}
+    else:
+        header, rows = _read_samples_csv(path, sample_size, delimiter, encoding)
+        source_block = {
+            "format": "csv",
+            "encoding": encoding,
+            "header": True,
+            "delimiter": delimiter,
+        }
+
     if not header:
-        raise ValueError(f"{csv_path}: no header row found (empty file?)")
+        raise ValueError(f"{path}: no header row found (empty file?)")
 
     fields: dict[str, dict[str, Any]] = {}
     for col_idx, col_name in enumerate(header):
@@ -167,17 +225,12 @@ def infer_mapping(
     if primary_key in fields:
         fields[primary_key]["required"] = True
 
-    stem = csv_path.stem.replace("-", "_").replace(" ", "_") or "ingested"
+    stem = path.stem.replace("-", "_").replace(" ", "_") or "ingested"
     return {
         "spec_version": 1,
         "name": name or stem,
-        "description": f"Inferred from {csv_path.name} ({len(rows)} sample rows)",
-        "source": {
-            "format": "csv",
-            "encoding": encoding,
-            "header": True,
-            "delimiter": delimiter,
-        },
+        "description": f"Inferred from {path.name} ({len(rows)} sample rows)",
+        "source": source_block,
         "target": {
             "table": table or stem,
             "primary_key": primary_key,

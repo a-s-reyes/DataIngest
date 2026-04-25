@@ -7,6 +7,7 @@ Two flavors:
 """
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -207,3 +208,102 @@ def test_infer_handles_custom_delimiter(tmp_path: Path) -> None:
     m = infer_mapping(csv, delimiter="\t")
     assert "id" in m["fields"]
     assert "name" in m["fields"]
+
+
+# --- xlsx support ---
+
+
+def _write_xlsx(path: Path, rows: list[list[Any]], sheet: str = "Sheet1") -> Path:
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    default = wb.active
+    if default is not None:
+        wb.remove(default)
+    ws = wb.create_sheet(title=sheet)
+    for row in rows:
+        ws.append(row)
+    wb.save(path)
+    return path
+
+
+def test_infer_autodetects_xlsx_from_extension(tmp_path: Path) -> None:
+    xlsx = _write_xlsx(
+        tmp_path / "things.xlsx",
+        [
+            ["id", "amount"],
+            ["A", 1.5],
+            ["B", 2.75],
+        ],
+    )
+    m = infer_mapping(xlsx)
+    assert m["source"]["format"] == "xlsx"
+    assert "encoding" not in m["source"]
+    assert "delimiter" not in m["source"]
+    assert m["fields"]["amount"]["type"] == "decimal"
+
+
+def test_infer_explicit_format_overrides_extension(tmp_path: Path) -> None:
+    """``format`` arg wins over the extension-based autodetect."""
+    weird = tmp_path / "weird.dat"
+    weird.write_text("id,name\nA,alpha\nB,beta\n", encoding="utf-8")
+    m = infer_mapping(weird, format="csv")
+    assert m["source"]["format"] == "csv"
+
+
+def test_infer_xlsx_round_trips_through_pipeline(tmp_path: Path) -> None:
+    """Done-when extended to xlsx: infer → load → e2e ingest succeeds."""
+    from sqlalchemy import create_engine, text
+
+    xlsx = _write_xlsx(
+        tmp_path / "readings.xlsx",
+        [
+            ["record_id", "channel", "value"],
+            ["TM-1", "ACC_X", 0.4823],
+            ["TM-2", "ACC_Y", -0.0117],
+            ["TM-3", "ACC_Z", 1.0024],
+        ],
+    )
+    mapping_dict = infer_mapping(xlsx)
+    yml_path = tmp_path / "readings.yml"
+    yml_path.write_text(dump_mapping(mapping_dict), encoding="utf-8")
+
+    db_path = tmp_path / "out.db"
+    pipeline = Pipeline(
+        source_uri=f"xlsx:///{xlsx.as_posix()}",
+        sink_uri=f"sqlite:///{db_path.as_posix()}",
+        mapping=Mapping.from_yaml(yml_path),
+        error_log=tmp_path / "errors.jsonl",
+    )
+    result = pipeline.run()
+    assert result.rows_in == 3
+    assert result.rows_ok == 3
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM readings")).scalar()
+        assert count == 3
+
+
+def test_infer_xlsx_with_named_sheet(tmp_path: Path) -> None:
+    """When the user wants a non-default sheet, --sheet picks it during sampling."""
+    import openpyxl
+
+    xlsx = tmp_path / "multi.xlsx"
+    wb = openpyxl.Workbook()
+    default = wb.active
+    if default is not None:
+        wb.remove(default)
+    other = wb.create_sheet("Bills")
+    other.append(["bill_id", "amount"])
+    # openpyxl normalizes 100.0 -> 100 (loses the .0), so use a non-integer
+    # value to exercise decimal inference.
+    other.append(["B-1", 1.50])
+    wb.create_sheet("Empty")
+    wb.save(xlsx)
+
+    m = infer_mapping(xlsx, sheet="Bills")
+    assert m["fields"]["bill_id"]["type"] == "str"
+    assert m["fields"]["amount"]["type"] == "decimal"
+    # Sheet name does NOT leak into the mapping — that's a runtime URI param.
+    assert "sheet" not in m["source"]

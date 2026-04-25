@@ -30,6 +30,6 @@ Local-only design notes live in `plan/` (gitignored): `00-master-plan.md` for ar
 
 **Tier 3 (portfolio polish) shipped:** T3.1 ARCHITECTURE.md ✅, T3.2 `dataingest infer` ✅, T3.3 `dataingest tables` ✅, T3.4 plugin entry points via `importlib.metadata` ✅, T3.5 badges + README demo session ✅ (asciinema cast remains a manual user step).
 
-**Project status:** production-ready, portfolio-polished, 183 tests passing (+8 postgres-skipped without env var), 90%+ coverage, mypy strict clean, full CI on every push.
+**Project status:** production-ready, portfolio-polished, **187 tests passing** (+8 postgres-skipped without env var), 90%+ coverage, mypy strict clean, full CI on every push. LICENSE + CHANGELOG.md present; `dataingest infer` supports both csv and xlsx.
 
 **Deferred:** `xlsx://` and `json://` sources, `replace` conflict mode (full upsert), Postgres / SQL Server sinks, plugin entry points, schema inference, parameterized cleaners — all scheduled in the roadmap.
