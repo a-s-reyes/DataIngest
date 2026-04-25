@@ -121,6 +121,37 @@ def test_telemetry_decimal_value_round_trips(telemetry: MappingFixture, tmp_path
         assert row.unit == "g"
 
 
+def test_telemetry_datetime_round_trips(telemetry: MappingFixture, tmp_path: Path) -> None:
+    """ISO 8601 with trailing Z survives source -> parse_datetime_iso -> SQLite DateTime -> SELECT."""
+    from datetime import datetime as _dt
+
+    db_path = tmp_path / "out.db"
+    mapping = Mapping.from_yaml(telemetry.mapping_yml)
+    Pipeline(
+        source_uri=_csv_uri(telemetry.csv),
+        sink_uri=_sqlite_uri(db_path),
+        mapping=mapping,
+        error_log=tmp_path / "errors.jsonl",
+    ).run()
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT record_id, recorded_at FROM telemetry_records ORDER BY record_id LIMIT 1")
+        ).first()
+        assert row is not None
+        assert row.record_id == "TM-00001"
+        # SQLAlchemy stores DateTime as ISO text in SQLite; raw `text()` selects
+        # bypass column-typed hydration, so we parse the round-tripped value
+        # back to confirm the timestamp survived end to end.
+        parsed = _dt.fromisoformat(str(row.recorded_at))
+        assert parsed.year == 2026
+        assert parsed.month == 4
+        assert parsed.day == 12
+        assert parsed.hour == 14
+        assert parsed.minute == 22
+
+
 def test_qualification_us_date_parses(qualification: MappingFixture, tmp_path: Path) -> None:
     """Specific assertion: qualification MM/DD/YYYY dates parse correctly."""
     db_path = tmp_path / "out.db"

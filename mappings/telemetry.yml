@@ -28,9 +28,9 @@ fields:
 
   recorded_at:
     column: 2
-    type: str
+    type: datetime
     required: true
-    cleaners: [strip]
+    cleaners: [strip, parse_datetime_iso]
 
   channel:
     column: 3

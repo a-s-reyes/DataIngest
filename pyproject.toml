@@ -24,6 +24,10 @@ dependencies = [
     "sqlalchemy>=2.0",
 ]
 
+[project.optional-dependencies]
+xlsx = ["openpyxl>=3.1"]
+postgres = ["psycopg[binary]>=3.1"]
+
 [project.scripts]
 dataingest = "dataingest.cli:app"
 
@@ -64,6 +68,10 @@ ignore = ["E501"]
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["openpyxl", "openpyxl.*"]
+ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["dataingest"]

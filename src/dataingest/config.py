@@ -4,11 +4,11 @@ from typing import Any, Literal, Self
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
-from .cleaners import REGISTRY as CLEANER_REGISTRY
+from .cleaners import validate_spec
 from .errors import MappingError
 
-SourceFormat = Literal["csv"]
-FieldType = Literal["str", "int", "decimal", "date", "bool"]
+SourceFormat = Literal["csv", "xlsx"]
+FieldType = Literal["str", "int", "decimal", "date", "datetime", "bool"]
 ConflictMode = Literal["skip", "replace", "error"]
 
 
@@ -34,9 +34,14 @@ class FieldConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_cleaners(self) -> Self:
-        unknown = [c for c in self.cleaners if c not in CLEANER_REGISTRY]
-        if unknown:
-            raise ValueError(f"unknown cleaner(s): {unknown}")
+        errors: list[str] = []
+        for spec in self.cleaners:
+            try:
+                validate_spec(spec)
+            except ValueError as err:
+                errors.append(str(err))
+        if errors:
+            raise ValueError("; ".join(errors))
         return self
 
 

@@ -1,11 +1,12 @@
 import contextlib
+import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, cast
+from typing import IO, Any, cast
 
 from pydantic import BaseModel, ValidationError, create_model
 
@@ -23,6 +24,7 @@ _TYPE_MAP: dict[FieldType, type] = {
     "int": int,
     "decimal": Decimal,
     "date": date,
+    "datetime": datetime,
     "bool": bool,
 }
 
@@ -81,7 +83,7 @@ class Pipeline:
         *,
         dry_run: bool = False,
         limit: int | None = None,
-        error_log: Path | None = None,
+        error_log: Path | IO[str] | None = None,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> None:
         if chunk_size < 1:
@@ -95,6 +97,7 @@ class Pipeline:
         self.chunk_size = chunk_size
 
     def run(self) -> RunResult:
+        log = logging.getLogger(__name__)
         src_parsed = parse_uri(self.source_uri)
         sink_parsed = parse_uri(self.sink_uri)
 
@@ -109,11 +112,26 @@ class Pipeline:
         }
         row_model = _build_row_model(self.mapping)
 
-        err_path = self.error_log or Path.cwd() / "errors.jsonl"
+        err_target: Path | IO[str] = self.error_log or Path.cwd() / "errors.jsonl"
+        # Path used for the manifest's error_log_path field. For file-like
+        # targets (e.g. sys.stderr) we record the stream name.
+        err_path_for_manifest = (
+            str(err_target)
+            if isinstance(err_target, Path)
+            else getattr(err_target, "name", "<stream>")
+        )
         result = RunResult()
         started_at = now_iso()
         batch: list[BaseModel] = []
         errored = False
+        log.info(
+            "pipeline starting run_id=%s mapping=%s source=%s sink=%s dry_run=%s",
+            result.run_id,
+            self.mapping.name,
+            self.source_uri,
+            self.sink_uri,
+            self.dry_run,
+        )
 
         if not self.dry_run:
             sink.begin(
@@ -128,10 +146,16 @@ class Pipeline:
                 return
             sink.write(batch)
             result.chunks_written += 1
+            log.debug(
+                "flushed chunk %d (rows_ok=%d, rows_failed=%d)",
+                result.chunks_written,
+                result.rows_ok,
+                result.rows_failed,
+            )
             batch.clear()
 
         try:
-            with JsonlErrorLog(err_path) as err_log:
+            with JsonlErrorLog(err_target) as err_log:
                 for i, raw in enumerate(source.rows(), start=1):
                     if self.limit is not None and result.rows_in >= self.limit:
                         break
@@ -199,7 +223,7 @@ class Pipeline:
                             rows_ok=result.rows_ok,
                             rows_failed=result.rows_failed,
                             chunks_written=result.chunks_written,
-                            error_log_path=str(err_path),
+                            error_log_path=err_path_for_manifest,
                             dataingest_version=__version__,
                             dry_run=False,
                             status=derive_status(result.rows_in, result.rows_ok, errored),
@@ -207,6 +231,14 @@ class Pipeline:
                     )
                 sink.close()
 
+        log.info(
+            "pipeline finished run_id=%s rows_in=%d rows_ok=%d rows_failed=%d chunks=%d",
+            result.run_id,
+            result.rows_in,
+            result.rows_ok,
+            result.rows_failed,
+            result.chunks_written,
+        )
         return result
 
     def _apply_mapping(

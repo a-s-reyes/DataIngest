@@ -30,3 +30,4 @@ def get(scheme: str) -> type:
 
 
 from . import csv as _csv  # noqa: F401, E402  -- triggers registration
+from . import xlsx as _xlsx  # noqa: F401, E402  -- triggers registration (lazy openpyxl import)

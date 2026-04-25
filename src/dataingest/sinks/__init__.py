@@ -43,4 +43,5 @@ def get(scheme: str) -> type:
     return REGISTRY[scheme]
 
 
+from . import postgres as _postgres  # noqa: F401, E402  -- triggers registration (lazy psycopg)
 from . import sqlite as _sqlite  # noqa: F401, E402  -- triggers registration

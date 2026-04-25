@@ -94,13 +94,27 @@ dataingest validate   Validate a YAML mapping file
 Common flags on `run`:
 
 ```
---source     URI    Source URI (e.g. csv:///path/to/file.csv)
---sink       URI    Sink URI (e.g. sqlite:///./out.db)
---mapping    PATH   Path to YAML mapping file
---dry-run           Validate without writing to the sink
---limit      N      Process at most N rows
---errors     PATH   Path for JSONL error log (default: ./errors.jsonl)
+--source       URI    Source URI (e.g. csv:///path/to/file.csv, xlsx://..., postgres://...)
+--sink         URI    Sink URI (e.g. sqlite:///./out.db, postgres://user:pass@host/db)
+--mapping      PATH   Path to YAML mapping file
+--dry-run             Validate without writing to the sink
+--limit        N      Process at most N rows
+--errors       PATH   Path for JSONL error log, or '-' for stderr (default: ./errors.jsonl)
+--chunk-size   N      Rows per sink batch flush (default: 1000, min: 1)
+-v / --verbose        Increase log verbosity. -v info, -vv debug. Default: warnings only.
+-q / --quiet          Suppress the summary line; rely on the exit code.
 ```
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Clean run, or vacuous success (no rows arrived) |
+| `1` | Preflight error — bad mapping, malformed URI, missing optional dep |
+| `2` | Partial failure — some rows landed, others routed to `errors.jsonl` |
+| `3` | Total failure — rows arrived but none survived validation |
+
+Shell-script integrators can branch on these without parsing stdout.
 
 ## Project layout
 
@@ -129,22 +143,44 @@ DataIngest/
 ## Development
 
 ```bash
-uv sync                    # install deps + create venv
-uv run pytest              # run tests
-uv run ruff check .        # lint
-uv run ruff format .       # format
-uv run mypy src tests      # type-check
+uv sync --all-extras --dev    # install deps + optional extras (xlsx, postgres)
+uv run pytest                 # run tests (postgres tests skip without DB)
+uv run ruff check .           # lint
+uv run ruff format .          # format
+uv run mypy src tests         # type-check (strict)
 ```
+
+### Running the postgres test suite locally
+
+The postgres integration tests are skipped unless `DATAINGEST_TEST_POSTGRES_URL` is set. To run them:
+
+```bash
+# Spin up a throwaway postgres
+docker run -d --name dataingest-pg \
+  -e POSTGRES_USER=dataingest \
+  -e POSTGRES_PASSWORD=dataingest \
+  -e POSTGRES_DB=dataingest_test \
+  -p 5432:5432 postgres:16
+
+# Point the test suite at it
+export DATAINGEST_TEST_POSTGRES_URL=postgres://dataingest:dataingest@localhost:5432/dataingest_test
+
+uv run pytest tests/test_postgres_sink.py -v
+```
+
+CI runs the full suite (sqlite + postgres) on every push via a `services: postgres` container.
 
 ## Roadmap
 
-**v1 (current)** — CSV source, SQLite sink, declarative YAML mappings, validation, named cleaner chains, dry-run mode, JSONL error log.
+Production-readiness sequencing lives in `plan/03-roadmap.md` (gitignored — local design notes). Current state:
 
-**v2** — Excel and JSON sources, `--upsert` mode, schema inference (`dataingest infer file.csv > mapping.yml`).
+**Tier 1 — production-ready credibility floor (shipped):** chunked streaming writes, GitHub Actions CI, mypy strict clean, coverage gate at 80%, run manifest table.
 
-**v3** — Postgres + SQL Server sinks, plugin entry points (`importlib.metadata`), run manifest table.
+**Tier 2 — practical for real work (in progress):** xlsx source ✅, datetime field type ✅, parameterized cleaners ✅, parse_int cleaner ✅, postgres sink with full upsert ✅, mssql sink (next), CLI ergonomics (next).
 
-**v4** — File-watcher daemon (drop folder → auto-ingest), notifications.
+**Tier 3 — portfolio polish (planned):** ARCHITECTURE.md, schema inference, `tables` inspect command, plugin entry points.
+
+Permanently out of scope: file-watcher daemon, Slack/email notifications, web UI, orchestration, streaming.
 
 ## Why this exists
 

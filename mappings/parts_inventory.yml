@@ -41,7 +41,7 @@ fields:
     column: 4
     type: int
     required: true
-    cleaners: [strip]
+    cleaners: [strip, parse_int]
 
   unit_of_issue:
     column: 5
