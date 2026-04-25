@@ -1,0 +1,75 @@
+spec_version: 1
+vendor: clay-sheriff-ky
+description: Clay County KY sheriff delinquent tax bill export
+
+source:
+  format: csv
+  encoding: utf-8
+  header: true
+  delimiter: ","
+
+target:
+  table: tax_bills
+  primary_key: bill_number
+  on_conflict: skip
+
+fields:
+  bill_number:
+    column: 0
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  account_number:
+    column: 1
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  map_number:
+    column: 2
+    type: str
+    cleaners: [strip]
+
+  owner_name:
+    column: 3
+    type: str
+    required: true
+    cleaners: [strip, remove_extra_whitespace, upper]
+
+  property_address:
+    column: 4
+    type: str
+    cleaners: [strip, remove_extra_whitespace, upper]
+
+  property_city:
+    column: 5
+    type: str
+    cleaners: [strip, upper]
+
+  property_state:
+    column: 6
+    type: str
+    cleaners: [strip, upper]
+
+  property_zip:
+    column: 7
+    type: str
+    cleaners: [strip]
+
+  assessed_value:
+    column: 8
+    type: decimal
+    cleaners: [strip, remove_currency_symbols, parse_decimal]
+
+  face_amount:
+    column: 9
+    type: decimal
+    required: true
+    cleaners: [strip, remove_currency_symbols, parse_decimal]
+
+  date_due:
+    column: 10
+    type: date
+    required: true
+    cleaners: [parse_date_us]
