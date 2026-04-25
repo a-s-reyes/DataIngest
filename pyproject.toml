@@ -64,3 +64,18 @@ ignore = ["E501"]
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
+
+[tool.coverage.run]
+source = ["dataingest"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+skip_covered = false

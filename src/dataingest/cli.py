@@ -6,7 +6,7 @@ import typer
 from . import __version__
 from .config import Mapping
 from .errors import MappingError
-from .pipeline import Pipeline
+from .pipeline import DEFAULT_CHUNK_SIZE, Pipeline
 
 app = typer.Typer(
     name="dataingest",
@@ -27,6 +27,14 @@ def run(
         Path | None,
         typer.Option(help="Path to JSONL error log (default: ./errors.jsonl)"),
     ] = None,
+    chunk_size: Annotated[
+        int,
+        typer.Option(
+            "--chunk-size",
+            help=f"Rows per sink batch flush (default: {DEFAULT_CHUNK_SIZE}, min: 1)",
+            min=1,
+        ),
+    ] = DEFAULT_CHUNK_SIZE,
 ) -> None:
     """Run a full ingestion pipeline."""
     try:
@@ -42,9 +50,14 @@ def run(
         dry_run=dry_run,
         limit=limit,
         error_log=errors,
+        chunk_size=chunk_size,
     )
     result = pipeline.run()
-    typer.echo(f"rows_in={result.rows_in} ok={result.rows_ok} failed={result.rows_failed}")
+    typer.echo(
+        f"rows_in={result.rows_in} ok={result.rows_ok} "
+        f"failed={result.rows_failed} chunks={result.chunks_written} "
+        f"run_id={result.run_id}"
+    )
 
 
 @app.command()

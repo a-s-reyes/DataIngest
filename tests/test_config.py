@@ -8,7 +8,7 @@ from dataingest.errors import MappingError
 from .conftest import MappingFixture
 
 
-def test_telemetry_mapping_loads(telemetry: MappingFixture):
+def test_telemetry_mapping_loads(telemetry: MappingFixture) -> None:
     m = Mapping.from_yaml(telemetry.mapping_yml)
     assert m.name == "flight-test-telemetry"
     assert m.spec_version == 1
@@ -18,7 +18,7 @@ def test_telemetry_mapping_loads(telemetry: MappingFixture):
     assert m.fields["value"].required is True
 
 
-def test_qualification_mapping_loads(qualification: MappingFixture):
+def test_qualification_mapping_loads(qualification: MappingFixture) -> None:
     m = Mapping.from_yaml(qualification.mapping_yml)
     assert m.name == "component-qualification-tests"
     assert m.target.table == "qualification_results"
@@ -26,7 +26,7 @@ def test_qualification_mapping_loads(qualification: MappingFixture):
     assert m.fields["measured_value"].required is True
 
 
-def test_parts_inventory_mapping_loads(parts_inventory: MappingFixture):
+def test_parts_inventory_mapping_loads(parts_inventory: MappingFixture) -> None:
     m = Mapping.from_yaml(parts_inventory.mapping_yml)
     assert m.name == "parts-inventory"
     assert m.target.table == "parts_inventory"
@@ -34,7 +34,7 @@ def test_parts_inventory_mapping_loads(parts_inventory: MappingFixture):
     assert m.fields["qty_on_hand"].required is True
 
 
-def test_unknown_cleaner_rejected(tmp_path: Path):
+def test_unknown_cleaner_rejected(tmp_path: Path) -> None:
     bad = tmp_path / "bad.yml"
     bad.write_text(
         """
@@ -53,7 +53,7 @@ fields:
         Mapping.from_yaml(bad)
 
 
-def test_primary_key_must_be_a_field(tmp_path: Path):
+def test_primary_key_must_be_a_field(tmp_path: Path) -> None:
     bad = tmp_path / "bad.yml"
     bad.write_text(
         """
@@ -71,7 +71,7 @@ fields:
         Mapping.from_yaml(bad)
 
 
-def test_invalid_yaml_raises(tmp_path: Path):
+def test_invalid_yaml_raises(tmp_path: Path) -> None:
     bad = tmp_path / "bad.yml"
     bad.write_text(":\n  - this is not\n  valid yaml: [", encoding="utf-8")
     with pytest.raises(MappingError):

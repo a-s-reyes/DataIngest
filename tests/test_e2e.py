@@ -17,7 +17,7 @@ def _sqlite_uri(p: Path) -> str:
     return f"sqlite:///{p.as_posix()}"
 
 
-def test_full_pipeline_writes_rows(any_mapping: MappingFixture, tmp_path: Path):
+def test_full_pipeline_writes_rows(any_mapping: MappingFixture, tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(any_mapping.mapping_yml)
     pipeline = Pipeline(
@@ -39,7 +39,7 @@ def test_full_pipeline_writes_rows(any_mapping: MappingFixture, tmp_path: Path):
         assert count == any_mapping.row_count
 
 
-def test_dry_run_does_not_create_db(any_mapping: MappingFixture, tmp_path: Path):
+def test_dry_run_does_not_create_db(any_mapping: MappingFixture, tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(any_mapping.mapping_yml)
     pipeline = Pipeline(
@@ -56,7 +56,7 @@ def test_dry_run_does_not_create_db(any_mapping: MappingFixture, tmp_path: Path)
     assert not db_path.exists()
 
 
-def test_limit_caps_rows(any_mapping: MappingFixture, tmp_path: Path):
+def test_limit_caps_rows(any_mapping: MappingFixture, tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(any_mapping.mapping_yml)
     pipeline = Pipeline(
@@ -77,7 +77,7 @@ def test_limit_caps_rows(any_mapping: MappingFixture, tmp_path: Path):
         assert count == 5
 
 
-def test_rerun_with_skip_is_idempotent(any_mapping: MappingFixture, tmp_path: Path):
+def test_rerun_with_skip_is_idempotent(any_mapping: MappingFixture, tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(any_mapping.mapping_yml)
     for _ in range(2):
@@ -95,7 +95,7 @@ def test_rerun_with_skip_is_idempotent(any_mapping: MappingFixture, tmp_path: Pa
         assert count == any_mapping.row_count
 
 
-def test_telemetry_decimal_value_round_trips(telemetry: MappingFixture, tmp_path: Path):
+def test_telemetry_decimal_value_round_trips(telemetry: MappingFixture, tmp_path: Path) -> None:
     """Specific assertion: telemetry value column survives the Decimal round-trip."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(telemetry.mapping_yml)
@@ -121,7 +121,7 @@ def test_telemetry_decimal_value_round_trips(telemetry: MappingFixture, tmp_path
         assert row.unit == "g"
 
 
-def test_qualification_us_date_parses(qualification: MappingFixture, tmp_path: Path):
+def test_qualification_us_date_parses(qualification: MappingFixture, tmp_path: Path) -> None:
     """Specific assertion: qualification MM/DD/YYYY dates parse correctly."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(qualification.mapping_yml)
@@ -145,7 +145,7 @@ def test_qualification_us_date_parses(qualification: MappingFixture, tmp_path: P
         assert row.result == "PASS"
 
 
-def test_parts_inventory_iso_date_parses(parts_inventory: MappingFixture, tmp_path: Path):
+def test_parts_inventory_iso_date_parses(parts_inventory: MappingFixture, tmp_path: Path) -> None:
     """Specific assertion: parts inventory ISO dates parse correctly."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(parts_inventory.mapping_yml)
@@ -167,7 +167,7 @@ def test_parts_inventory_iso_date_parses(parts_inventory: MappingFixture, tmp_pa
         assert str(row.last_audit) == "2026-03-18"
 
 
-def test_invalid_row_logged_to_errors(qualification: MappingFixture, tmp_path: Path):
+def test_invalid_row_logged_to_errors(qualification: MappingFixture, tmp_path: Path) -> None:
     """A bad decimal in a required field routes the row to errors.jsonl."""
     bad_csv = tmp_path / "bad.csv"
     bad_csv.write_text(
@@ -194,7 +194,7 @@ def test_invalid_row_logged_to_errors(qualification: MappingFixture, tmp_path: P
     assert "not-a-number" in err_path.read_text(encoding="utf-8")
 
 
-def test_validation_error_logged(tmp_path: Path):
+def test_validation_error_logged(tmp_path: Path) -> None:
     """Pydantic validation error (decimal coercion failure with no cleaners)."""
     bad_mapping = tmp_path / "no_cleaners.yml"
     bad_mapping.write_text(

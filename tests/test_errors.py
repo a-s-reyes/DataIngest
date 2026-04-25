@@ -6,7 +6,7 @@ import pytest
 from dataingest.errors import JsonlErrorLog, RowError
 
 
-def test_jsonl_error_log_roundtrip(tmp_path: Path):
+def test_jsonl_error_log_roundtrip(tmp_path: Path) -> None:
     log_path = tmp_path / "errors.jsonl"
     err = RowError(
         row_number=42,
@@ -26,7 +26,7 @@ def test_jsonl_error_log_roundtrip(tmp_path: Path):
     assert parsed["rule"] == "parse_decimal"
 
 
-def test_write_outside_context_raises(tmp_path: Path):
+def test_write_outside_context_raises(tmp_path: Path) -> None:
     log = JsonlErrorLog(tmp_path / "errors.jsonl")
     err = RowError(0, "x", None, None, "r", "m")
     with pytest.raises(RuntimeError, match="context manager"):

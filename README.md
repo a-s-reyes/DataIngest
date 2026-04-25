@@ -1,5 +1,10 @@
 # DataIngest
 
+[![CI](https://github.com/a-s-reyes/DataIngest/actions/workflows/ci.yml/badge.svg)](https://github.com/a-s-reyes/DataIngest/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen)](https://github.com/a-s-reyes/DataIngest/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
 > Config-driven CSV → SQL ingestion tool with declarative schema mappings.
 
 DataIngest takes messy tabular files (CSV today, Excel/JSON next), runs them through a YAML-declared validation and cleaning pipeline, and loads them into a SQL database. Onboarding a new file format does not mean writing Python — it means writing a YAML file.

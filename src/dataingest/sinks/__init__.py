@@ -1,7 +1,9 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel
+
+from ..manifest import RunManifest
 
 
 @runtime_checkable
@@ -17,6 +19,7 @@ class Sink(Protocol):
         on_conflict: str = "error",
     ) -> None: ...
     def write(self, rows: Iterable[BaseModel]) -> int: ...
+    def write_manifest(self, manifest: RunManifest) -> None: ...
     def commit(self) -> None: ...
     def close(self) -> None: ...
 
@@ -24,7 +27,7 @@ class Sink(Protocol):
 REGISTRY: dict[str, type] = {}
 
 
-def register(scheme: str):
+def register(scheme: str) -> Callable[[type], type]:
     def decorator(cls: type) -> type:
         if scheme in REGISTRY:
             raise ValueError(f"sink scheme {scheme!r} already registered")

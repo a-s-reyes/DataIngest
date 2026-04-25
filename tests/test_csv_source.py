@@ -5,7 +5,7 @@ from dataingest.sources.csv import CsvSource
 from .conftest import MappingFixture
 
 
-def test_yields_rows_with_index_and_header_keys(telemetry: MappingFixture):
+def test_yields_rows_with_index_and_header_keys(telemetry: MappingFixture) -> None:
     src = CsvSource(str(telemetry.csv), {})
     rows = list(src.rows())
     assert len(rows) == telemetry.row_count
@@ -18,7 +18,7 @@ def test_yields_rows_with_index_and_header_keys(telemetry: MappingFixture):
     assert first["channel"] == "acc_x_fuselage"
 
 
-def test_no_header_uses_index_only(tmp_path: Path):
+def test_no_header_uses_index_only(tmp_path: Path) -> None:
     raw = tmp_path / "noheader.csv"
     raw.write_text("a,b,c\nd,e,f\n", encoding="utf-8")
     src = CsvSource(str(raw), {"header": "false"})
@@ -29,7 +29,7 @@ def test_no_header_uses_index_only(tmp_path: Path):
     ]
 
 
-def test_custom_delimiter(tmp_path: Path):
+def test_custom_delimiter(tmp_path: Path) -> None:
     raw = tmp_path / "semi.csv"
     raw.write_text("name;value\nfoo;1\nbar;2\n", encoding="utf-8")
     src = CsvSource(str(raw), {"delimiter": ";"})

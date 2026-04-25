@@ -1,5 +1,7 @@
+import contextlib
+import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -7,9 +9,11 @@ from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError, create_model
 
+from . import __version__
 from .cleaners import chain as build_cleaner
 from .config import FieldType, Mapping
 from .errors import JsonlErrorLog, RowError
+from .manifest import RunManifest, derive_status, now_iso
 from .sinks import get as get_sink
 from .sources import get as get_source
 from .uri import parse as parse_uri
@@ -33,7 +37,24 @@ def _build_row_model(mapping: Mapping) -> type[BaseModel]:
         else:
             fields[name] = (py_type | None, fc.default)
     safe_name = mapping.name.replace("-", "_") + "_Row"
-    return cast(type[BaseModel], create_model(safe_name, **fields))
+    return cast(type[BaseModel], create_model(safe_name, **fields))  # type: ignore[call-overload]
+
+
+class _CleanerError(Exception):
+    """Raised internally when a cleaner chain raises on a row's field.
+
+    Carries the offending field, raw value, and underlying message so the
+    pipeline can route the row to the JSONL error log without losing context.
+    """
+
+    def __init__(self, field: str, value: Any, message: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.value = value
+        self.message = message
+
+
+DEFAULT_CHUNK_SIZE = 1000
 
 
 @dataclass
@@ -41,10 +62,16 @@ class RunResult:
     rows_in: int = 0
     rows_ok: int = 0
     rows_failed: int = 0
+    chunks_written: int = 0
+    run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
 class Pipeline:
-    """Orchestrates source → mapping → validation → sink."""
+    """Orchestrates source → mapping → validation → sink.
+
+    Validated rows are flushed to the sink in batches of ``chunk_size`` so that
+    peak memory stays bounded regardless of input size.
+    """
 
     def __init__(
         self,
@@ -55,13 +82,17 @@ class Pipeline:
         dry_run: bool = False,
         limit: int | None = None,
         error_log: Path | None = None,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> None:
+        if chunk_size < 1:
+            raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
         self.source_uri = source_uri
         self.sink_uri = sink_uri
         self.mapping = mapping
         self.dry_run = dry_run
         self.limit = limit
         self.error_log = error_log
+        self.chunk_size = chunk_size
 
     def run(self) -> RunResult:
         src_parsed = parse_uri(self.source_uri)
@@ -80,7 +111,9 @@ class Pipeline:
 
         err_path = self.error_log or Path.cwd() / "errors.jsonl"
         result = RunResult()
-        validated: list[BaseModel] = []
+        started_at = now_iso()
+        batch: list[BaseModel] = []
+        errored = False
 
         if not self.dry_run:
             sink.begin(
@@ -90,6 +123,13 @@ class Pipeline:
                 on_conflict=self.mapping.target.on_conflict,
             )
 
+        def flush() -> None:
+            if self.dry_run or not batch:
+                return
+            sink.write(batch)
+            result.chunks_written += 1
+            batch.clear()
+
         try:
             with JsonlErrorLog(err_path) as err_log:
                 for i, raw in enumerate(source.rows(), start=1):
@@ -97,23 +137,24 @@ class Pipeline:
                         break
                     result.rows_in += 1
 
-                    cleaned, cleaner_err = self._apply_mapping(raw, cleaners)
-                    if cleaner_err is not None:
+                    try:
+                        cleaned = self._apply_mapping(raw, cleaners)
+                    except _CleanerError as cf:
                         err_log.write(
                             RowError(
                                 row_number=i,
                                 source_file=src_parsed.path,
-                                field=cleaner_err["field"],
-                                value=cleaner_err["value"],
+                                field=cf.field,
+                                value=cf.value,
                                 rule="cleaner",
-                                message=cleaner_err["message"],
+                                message=cf.message,
                             )
                         )
                         result.rows_failed += 1
                         continue
 
                     try:
-                        validated.append(row_model(**cleaned))
+                        batch.append(row_model(**cleaned))
                         result.rows_ok += 1
                     except ValidationError as exc:
                         for err in exc.errors():
@@ -130,13 +171,40 @@ class Pipeline:
                                 )
                             )
                         result.rows_failed += 1
+                        continue
 
-            if not self.dry_run and validated:
-                sink.write(validated)
+                    if len(batch) >= self.chunk_size:
+                        flush()
+
+            flush()
+            if not self.dry_run:
                 sink.commit()
+        except Exception:
+            errored = True
+            raise
         finally:
             source.close()
             if not self.dry_run:
+                # Best-effort manifest write — never mask the original exception.
+                with contextlib.suppress(Exception):
+                    sink.write_manifest(
+                        RunManifest(
+                            run_id=result.run_id,
+                            started_at=started_at,
+                            finished_at=now_iso(),
+                            mapping_name=self.mapping.name,
+                            source_uri=self.source_uri,
+                            target_table=self.mapping.target.table,
+                            rows_in=result.rows_in,
+                            rows_ok=result.rows_ok,
+                            rows_failed=result.rows_failed,
+                            chunks_written=result.chunks_written,
+                            error_log_path=str(err_path),
+                            dataingest_version=__version__,
+                            dry_run=False,
+                            status=derive_status(result.rows_in, result.rows_ok, errored),
+                        )
+                    )
                 sink.close()
 
         return result
@@ -145,7 +213,7 @@ class Pipeline:
         self,
         raw: dict[str, Any],
         cleaners: dict[str, Callable[[Any], Any]],
-    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    ) -> dict[str, Any]:
         cleaned: dict[str, Any] = {}
         for name, fc in self.mapping.fields.items():
             key = str(fc.column)
@@ -153,9 +221,5 @@ class Pipeline:
             try:
                 cleaned[name] = cleaners[name](raw_value)
             except Exception as exc:
-                return None, {
-                    "field": name,
-                    "value": raw_value,
-                    "message": str(exc),
-                }
-        return cleaned, None
+                raise _CleanerError(name, raw_value, str(exc)) from exc
+        return cleaned

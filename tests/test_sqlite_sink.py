@@ -13,7 +13,7 @@ class _Row(BaseModel):
     amount: int | None = None
 
 
-def test_begin_creates_table(tmp_path: Path):
+def test_begin_creates_table(tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
     sink = SqliteSink(str(db_path), {})
     sink.begin(_Row, table="things", primary_key="id")
@@ -27,7 +27,7 @@ def test_begin_creates_table(tmp_path: Path):
         assert cols["id"].pk == 1
 
 
-def test_write_inserts_rows(tmp_path: Path):
+def test_write_inserts_rows(tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
     sink = SqliteSink(str(db_path), {})
     sink.begin(_Row, table="things", primary_key="id")
@@ -43,7 +43,7 @@ def test_write_inserts_rows(tmp_path: Path):
         assert count == 2
 
 
-def test_on_conflict_skip_drops_dupes(tmp_path: Path):
+def test_on_conflict_skip_drops_dupes(tmp_path: Path) -> None:
     db_path = tmp_path / "out.db"
     sink = SqliteSink(str(db_path), {})
     sink.begin(_Row, table="things", primary_key="id", on_conflict="skip")
@@ -57,13 +57,13 @@ def test_on_conflict_skip_drops_dupes(tmp_path: Path):
         assert [(r.id, r.name) for r in rows] == [("A", "first"), ("B", "new")]
 
 
-def test_unsupported_on_conflict_raises(tmp_path: Path):
+def test_unsupported_on_conflict_raises(tmp_path: Path) -> None:
     sink = SqliteSink(str(tmp_path / "x.db"), {})
     with pytest.raises(ValueError, match="not supported"):
         sink.begin(_Row, table="x", primary_key="id", on_conflict="replace")
 
 
-def test_write_before_begin_raises(tmp_path: Path):
+def test_write_before_begin_raises(tmp_path: Path) -> None:
     sink = SqliteSink(str(tmp_path / "x.db"), {})
     with pytest.raises(RuntimeError, match="begin"):
         sink.write([_Row(id="A")])

@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -13,7 +13,7 @@ class Source(Protocol):
 REGISTRY: dict[str, type] = {}
 
 
-def register(scheme: str):
+def register(scheme: str) -> Callable[[type], type]:
     def decorator(cls: type) -> type:
         if scheme in REGISTRY:
             raise ValueError(f"source scheme {scheme!r} already registered")

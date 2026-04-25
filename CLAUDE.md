@@ -20,6 +20,8 @@ Local-only design notes live in `plan/` (gitignored): `00-master-plan.md` for ar
 
 ## Implementation status
 
-**Implemented:** cleaners, URI parser, error types + JSONL log, Pydantic config models, CLI, `Pipeline.run()`, `CsvSource`, `SqliteSink` (with `error` / `skip` conflict modes), three reference mappings + fixtures, parameterized e2e tests.
+**Implemented:** cleaners, URI parser, error types + JSONL log, Pydantic config models, CLI, `Pipeline.run()` with chunked streaming writes, `CsvSource`, `SqliteSink` (with `error` / `skip` conflict modes), three reference mappings + fixtures, parameterized e2e tests.
 
-**Deferred to v2+:** `xlsx://` and `json://` sources, `replace` conflict mode (full upsert), Postgres / SQL Server sinks, plugin entry points, schema inference, file-watcher daemon.
+**Roadmap:** see `plan/03-roadmap.md` for the production-readiness sequencing. **Tier 1 complete.** T1.1 (chunked streaming writes) ✅, T1.2 (GitHub Actions CI) ✅, T1.3 (mypy strict clean) ✅, T1.4 (coverage gate at 80%) ✅, T1.5 (run manifest) ✅. Production-ready credibility floor in place. Tier 2 (work-tool capability) is next: starts with T2.1 (xlsx source).
+
+**Deferred:** `xlsx://` and `json://` sources, `replace` conflict mode (full upsert), Postgres / SQL Server sinks, plugin entry points, schema inference, parameterized cleaners — all scheduled in the roadmap.
