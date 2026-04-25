@@ -1,6 +1,6 @@
 # DataIngest — Project Context
 
-Read [`plan/00-master-plan.md`](plan/00-master-plan.md) first for the full architecture, scope, and reference patterns. [`plan/01-references.md`](plan/01-references.md) has the prior-art analysis.
+Read [`plan/00-master-plan.md`](plan/00-master-plan.md) first for the full architecture, scope, and reference patterns. [`plan/01-references.md`](plan/01-references.md) has the prior-art analysis. [`plan/02-decisions.md`](plan/02-decisions.md) captures the design decisions, rejected alternatives, and rationale from the planning conversation — read this when you need to know *why* something was built the way it was.
 
 ## Quick context
 
