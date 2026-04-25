@@ -32,7 +32,7 @@ def _build_row_model(mapping: Mapping) -> type[BaseModel]:
             fields[name] = (py_type, ...)
         else:
             fields[name] = (py_type | None, fc.default)
-    safe_name = mapping.vendor.replace("-", "_") + "_Row"
+    safe_name = mapping.name.replace("-", "_") + "_Row"
     return cast(type[BaseModel], create_model(safe_name, **fields))
 
 

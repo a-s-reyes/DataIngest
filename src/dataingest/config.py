@@ -42,7 +42,7 @@ class FieldConfig(BaseModel):
 
 class Mapping(BaseModel):
     spec_version: int
-    vendor: str
+    name: str
     description: str | None = None
     source: SourceConfig
     target: TargetConfig
@@ -51,9 +51,7 @@ class Mapping(BaseModel):
     @model_validator(mode="after")
     def _check_primary_key_exists(self) -> Self:
         if self.target.primary_key not in self.fields:
-            raise ValueError(
-                f"primary_key {self.target.primary_key!r} not declared in fields"
-            )
+            raise ValueError(f"primary_key {self.target.primary_key!r} not declared in fields")
         return self
 
     @classmethod

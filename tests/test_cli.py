@@ -4,6 +4,8 @@ from typer.testing import CliRunner
 
 from dataingest.cli import app
 
+from .conftest import MappingFixture
+
 runner = CliRunner()
 
 
@@ -13,11 +15,11 @@ def test_version():
     assert "0.1.0" in result.stdout
 
 
-def test_validate_ok(clay_mapping: Path):
-    result = runner.invoke(app, ["validate", str(clay_mapping)])
+def test_validate_ok(telemetry: MappingFixture):
+    result = runner.invoke(app, ["validate", str(telemetry.mapping_yml)])
     assert result.exit_code == 0
     assert "OK:" in result.stdout
-    assert "vendor=clay-sheriff-ky" in result.stdout
+    assert "name=flight-test-telemetry" in result.stdout
 
 
 def test_validate_bad_yaml(tmp_path: Path):
@@ -28,18 +30,18 @@ def test_validate_bad_yaml(tmp_path: Path):
     assert "error" in result.stderr.lower()
 
 
-def test_run_dry_run(clay_csv: Path, clay_mapping: Path, tmp_path: Path):
+def test_run_dry_run(telemetry: MappingFixture, tmp_path: Path):
     db_path = tmp_path / "out.db"
     result = runner.invoke(
         app,
         [
             "run",
             "--source",
-            f"csv:///{clay_csv.as_posix()}",
+            f"csv:///{telemetry.csv.as_posix()}",
             "--sink",
             f"sqlite:///{db_path.as_posix()}",
             "--mapping",
-            str(clay_mapping),
+            str(telemetry.mapping_yml),
             "--dry-run",
             "--errors",
             str(tmp_path / "errors.jsonl"),

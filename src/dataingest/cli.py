@@ -44,9 +44,7 @@ def run(
         error_log=errors,
     )
     result = pipeline.run()
-    typer.echo(
-        f"rows_in={result.rows_in} ok={result.rows_ok} failed={result.rows_failed}"
-    )
+    typer.echo(f"rows_in={result.rows_in} ok={result.rows_ok} failed={result.rows_failed}")
 
 
 @app.command()
@@ -59,7 +57,7 @@ def validate(
     except MappingError as err:
         typer.echo(f"error: {err}", err=True)
         raise typer.Exit(code=1) from err
-    typer.echo(f"OK: {mapping} (vendor={m.vendor}, fields={len(m.fields)})")
+    typer.echo(f"OK: {mapping} (name={m.name}, fields={len(m.fields)})")
 
 
 @app.command()

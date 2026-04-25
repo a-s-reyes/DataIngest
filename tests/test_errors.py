@@ -10,8 +10,8 @@ def test_jsonl_error_log_roundtrip(tmp_path: Path):
     log_path = tmp_path / "errors.jsonl"
     err = RowError(
         row_number=42,
-        source_file="clay.csv",
-        field="face_amount",
+        source_file="telemetry.csv",
+        field="value",
         value="not a number",
         rule="parse_decimal",
         message="cannot parse decimal",
@@ -22,7 +22,7 @@ def test_jsonl_error_log_roundtrip(tmp_path: Path):
     line = log_path.read_text(encoding="utf-8").strip()
     parsed = json.loads(line)
     assert parsed["row_number"] == 42
-    assert parsed["field"] == "face_amount"
+    assert parsed["field"] == "value"
     assert parsed["rule"] == "parse_decimal"
 
 

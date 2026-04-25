@@ -5,15 +5,33 @@ import pytest
 from dataingest.config import Mapping
 from dataingest.errors import MappingError
 
+from .conftest import MappingFixture
 
-def test_clay_mapping_loads(clay_mapping: Path):
-    m = Mapping.from_yaml(clay_mapping)
-    assert m.vendor == "clay-sheriff-ky"
+
+def test_telemetry_mapping_loads(telemetry: MappingFixture):
+    m = Mapping.from_yaml(telemetry.mapping_yml)
+    assert m.name == "flight-test-telemetry"
     assert m.spec_version == 1
-    assert m.target.table == "tax_bills"
-    assert m.target.primary_key == "bill_number"
-    assert "bill_number" in m.fields
-    assert m.fields["face_amount"].required is True
+    assert m.target.table == "telemetry_records"
+    assert m.target.primary_key == "record_id"
+    assert "record_id" in m.fields
+    assert m.fields["value"].required is True
+
+
+def test_qualification_mapping_loads(qualification: MappingFixture):
+    m = Mapping.from_yaml(qualification.mapping_yml)
+    assert m.name == "component-qualification-tests"
+    assert m.target.table == "qualification_results"
+    assert m.target.primary_key == "test_id"
+    assert m.fields["measured_value"].required is True
+
+
+def test_parts_inventory_mapping_loads(parts_inventory: MappingFixture):
+    m = Mapping.from_yaml(parts_inventory.mapping_yml)
+    assert m.name == "parts-inventory"
+    assert m.target.table == "parts_inventory"
+    assert m.target.primary_key == "nsn"
+    assert m.fields["qty_on_hand"].required is True
 
 
 def test_unknown_cleaner_rejected(tmp_path: Path):
@@ -21,7 +39,7 @@ def test_unknown_cleaner_rejected(tmp_path: Path):
     bad.write_text(
         """
 spec_version: 1
-vendor: bad
+name: bad
 source: { format: csv }
 target: { table: t, primary_key: x }
 fields:
@@ -40,7 +58,7 @@ def test_primary_key_must_be_a_field(tmp_path: Path):
     bad.write_text(
         """
 spec_version: 1
-vendor: bad
+name: bad
 source: { format: csv }
 target: { table: t, primary_key: missing_field }
 fields:

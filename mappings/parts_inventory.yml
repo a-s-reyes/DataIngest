@@ -1,0 +1,62 @@
+spec_version: 1
+name: parts-inventory
+description: Parts master export with stock numbers, lot codes, and condition codes.
+
+source:
+  format: csv
+  encoding: utf-8
+  header: true
+  delimiter: ","
+
+target:
+  table: parts_inventory
+  primary_key: nsn
+  on_conflict: skip
+
+fields:
+  nsn:
+    column: 0
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  part_number:
+    column: 1
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  lot_code:
+    column: 2
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  description:
+    column: 3
+    type: str
+    cleaners: [strip, remove_extra_whitespace]
+
+  qty_on_hand:
+    column: 4
+    type: int
+    required: true
+    cleaners: [strip]
+
+  unit_of_issue:
+    column: 5
+    type: str
+    cleaners: [strip, upper]
+    default: "EA"
+
+  condition_code:
+    column: 6
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  last_audit:
+    column: 7
+    type: date
+    required: true
+    cleaners: [strip, parse_date_iso]

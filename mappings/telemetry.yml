@@ -1,0 +1,57 @@
+spec_version: 1
+name: flight-test-telemetry
+description: Sensor channel readings exported from a flight test data acquisition system.
+
+source:
+  format: csv
+  encoding: utf-8
+  header: true
+  delimiter: ","
+
+target:
+  table: telemetry_records
+  primary_key: record_id
+  on_conflict: skip
+
+fields:
+  record_id:
+    column: 0
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  flight_id:
+    column: 1
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  recorded_at:
+    column: 2
+    type: str
+    required: true
+    cleaners: [strip]
+
+  channel:
+    column: 3
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  value:
+    column: 4
+    type: decimal
+    required: true
+    cleaners: [strip, parse_decimal]
+
+  unit:
+    column: 5
+    type: str
+    required: true
+    cleaners: [strip]
+
+  quality:
+    column: 6
+    type: str
+    cleaners: [strip, upper]
+    default: "OK"

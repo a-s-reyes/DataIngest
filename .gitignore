@@ -44,3 +44,6 @@ Thumbs.db
 *.sqlite3
 errors.jsonl
 output/
+
+# Local-only design notes (not published to GitHub)
+plan/

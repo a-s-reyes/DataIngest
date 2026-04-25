@@ -2,18 +2,20 @@ from pathlib import Path
 
 from dataingest.sources.csv import CsvSource
 
+from .conftest import MappingFixture
 
-def test_yields_rows_with_index_and_header_keys(clay_csv: Path):
-    src = CsvSource(str(clay_csv), {})
+
+def test_yields_rows_with_index_and_header_keys(telemetry: MappingFixture):
+    src = CsvSource(str(telemetry.csv), {})
     rows = list(src.rows())
-    assert len(rows) == 20
+    assert len(rows) == telemetry.row_count
 
     first = rows[0]
     # both index and header keys present
-    assert first["0"] == "00001"
-    assert first["Bill Number"] == "00001"
-    assert first["3"] == "SMITH JOHN"
-    assert first["Owner Name"] == "SMITH JOHN"
+    assert first["0"] == "TM-00001"
+    assert first["record_id"] == "TM-00001"
+    assert first["3"] == "acc_x_fuselage"
+    assert first["channel"] == "acc_x_fuselage"
 
 
 def test_no_header_uses_index_only(tmp_path: Path):

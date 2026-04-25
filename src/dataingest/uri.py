@@ -13,9 +13,9 @@ def parse(uri: str) -> ParsedURI:
     """Parse a DataIngest source/sink URI.
 
     Examples:
-        csv:///data/clay.csv          -> scheme='csv', path='/data/clay.csv'
+        csv:///data/file.csv          -> scheme='csv', path='/data/file.csv'
         sqlite:///./out.db            -> scheme='sqlite', path='./out.db'
-        csv:///data/clay.csv?delim=;  -> scheme='csv', path='/data/clay.csv', params={'delim': ';'}
+        csv:///data/file.csv?delim=;  -> scheme='csv', path='/data/file.csv', params={'delim': ';'}
     """
     parsed = urlparse(uri)
     if not parsed.scheme:

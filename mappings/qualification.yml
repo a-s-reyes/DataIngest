@@ -1,0 +1,62 @@
+spec_version: 1
+name: component-qualification-tests
+description: Component qualification test results — one row per measured parameter per run.
+
+source:
+  format: csv
+  encoding: utf-8
+  header: true
+  delimiter: ","
+
+target:
+  table: qualification_results
+  primary_key: test_id
+  on_conflict: skip
+
+fields:
+  test_id:
+    column: 0
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  part_number:
+    column: 1
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  run_date:
+    column: 2
+    type: date
+    required: true
+    cleaners: [strip, parse_date_us]
+
+  parameter:
+    column: 3
+    type: str
+    required: true
+    cleaners: [strip, remove_extra_whitespace, upper]
+
+  measured_value:
+    column: 4
+    type: decimal
+    required: true
+    cleaners: [strip, parse_decimal]
+
+  tolerance:
+    column: 5
+    type: decimal
+    required: true
+    cleaners: [strip, parse_decimal]
+
+  result:
+    column: 6
+    type: str
+    required: true
+    cleaners: [strip, upper]
+
+  technician:
+    column: 7
+    type: str
+    cleaners: [strip, remove_extra_whitespace]
