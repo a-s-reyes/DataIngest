@@ -1,7 +1,7 @@
 [project]
 name = "dataingest"
 version = "0.1.0"
-description = "Config-driven CSV → SQL ingestion tool with declarative vendor mappings."
+description = "Config-driven CSV → SQL ingestion tool with declarative schema mappings."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Andrean Reyes" }]
