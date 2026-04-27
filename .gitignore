@@ -13,6 +13,10 @@ env/
 # uv
 .uv/
 
+# Claude Code / agent-local artifacts
+.claude/
+CLAUDE.md
+
 # Distribution / packaging
 build/
 dist/
