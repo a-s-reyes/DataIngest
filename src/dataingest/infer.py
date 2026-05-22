@@ -111,7 +111,7 @@ def _read_samples_csv(
     path: Path,
     sample_size: int = DEFAULT_SAMPLE_SIZE,
     delimiter: str = ",",
-    encoding: str = "utf-8",
+    encoding: str = "utf-8-sig",
 ) -> tuple[list[str], list[list[str]]]:
     """Read header + up to ``sample_size`` data rows from a CSV."""
     with path.open("r", encoding=encoding, newline="") as fp:
@@ -179,7 +179,7 @@ def infer_mapping(
     table: str | None = None,
     sample_size: int = DEFAULT_SAMPLE_SIZE,
     delimiter: str = ",",
-    encoding: str = "utf-8",
+    encoding: str = "utf-8-sig",
     sheet: str | None = None,
     format: Literal["csv", "xlsx"] | None = None,
 ) -> dict[str, Any]:

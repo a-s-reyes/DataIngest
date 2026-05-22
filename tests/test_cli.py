@@ -345,6 +345,71 @@ def test_tables_unknown_scheme_exits_one() -> None:
     assert result.exit_code == EXIT_PREFLIGHT_ERROR
 
 
+# --- Exception-handling regression: B5 / B7 / B8 ---
+
+
+def test_bad_source_path_exits_clean(telemetry: MappingFixture, tmp_path: Path) -> None:
+    """B5: a typo'd source path used to raise raw FileNotFoundError with a
+    full Python traceback. Now it must exit 1 with a one-line error."""
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--source",
+            "csv:///./does_not_exist.csv",
+            "--sink",
+            f"sqlite:///{(tmp_path / 'out.db').as_posix()}",
+            "--mapping",
+            str(telemetry.mapping_yml),
+            "--errors",
+            str(tmp_path / "errors.jsonl"),
+        ],
+    )
+    assert result.exit_code == EXIT_PREFLIGHT_ERROR
+    assert "Traceback" not in result.stderr
+    assert "FileNotFoundError" in result.stderr or "No such file" in result.stderr
+
+
+def test_tables_on_missing_sqlite_exits_clean(tmp_path: Path) -> None:
+    """B7: ``tables`` on a non-existent sqlite path used to silently create
+    the file. Now it must exit 1 with a clear "database not found" message
+    and leave no stray file behind."""
+    target = tmp_path / "does_not_exist.db"
+    result = runner.invoke(app, ["tables", f"sqlite:///{target.as_posix()}"])
+    assert result.exit_code == EXIT_PREFLIGHT_ERROR
+    assert "not found" in result.stderr
+    assert not target.exists(), "tables must not create the sqlite file"
+
+
+def test_bad_xlsx_sheet_exits_clean(tmp_path: Path, telemetry: MappingFixture) -> None:
+    """B8: a missing sheet name used to raise raw KeyError with a traceback."""
+    import openpyxl
+
+    xlsx = tmp_path / "one_sheet.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["record_id", "channel", "value"])
+    ws.append(["TM-1", "ACC_X", 0.1])
+    wb.save(xlsx)
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--source",
+            f"xlsx:///{xlsx.as_posix()}?sheet=Nonexistent",
+            "--sink",
+            f"sqlite:///{(tmp_path / 'out.db').as_posix()}",
+            "--mapping",
+            str(telemetry.mapping_yml),
+            "--errors",
+            str(tmp_path / "errors.jsonl"),
+        ],
+    )
+    assert result.exit_code == EXIT_PREFLIGHT_ERROR
+    assert "Traceback" not in result.stderr
+
+
 def test_verbose_emits_pipeline_log_lines(telemetry: MappingFixture, tmp_path: Path) -> None:
     result = runner.invoke(
         app,

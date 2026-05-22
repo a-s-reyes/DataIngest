@@ -141,9 +141,11 @@ def run(
             chunk_size=chunk_size,
         )
         result = pipeline.run()
-    except ValueError as err:
-        # e.g. chunk_size validation, unknown URI scheme
-        typer.echo(f"error: {err}", err=True)
+    except Exception as err:
+        # Convert any runtime failure to a clean preflight error. The full
+        # traceback still lands in the verbose log if the user passed -vv.
+        logging.getLogger(__name__).debug("pipeline raised", exc_info=err)
+        typer.echo(f"error: {type(err).__name__}: {err}", err=True)
         raise typer.Exit(code=EXIT_PREFLIGHT_ERROR) from err
 
     if not quiet:
@@ -196,8 +198,8 @@ def infer(
     ] = ",",
     encoding: Annotated[
         str,
-        typer.Option(help="File encoding (csv only, default: utf-8)"),
-    ] = "utf-8",
+        typer.Option(help="File encoding (csv only, default: utf-8-sig; handles BOM)"),
+    ] = "utf-8-sig",
     sheet: Annotated[
         str | None,
         typer.Option(help="xlsx sheet name to sample (default: first sheet)"),
@@ -237,8 +239,9 @@ def infer(
             encoding=encoding,
             sheet=sheet,
         )
-    except (FileNotFoundError, ValueError) as err:
-        typer.echo(f"error: {err}", err=True)
+    except Exception as err:
+        logging.getLogger(__name__).debug("infer raised", exc_info=err)
+        typer.echo(f"error: {type(err).__name__}: {err}", err=True)
         raise typer.Exit(code=EXIT_PREFLIGHT_ERROR) from err
 
     yaml_text = dump_mapping(mapping)
@@ -269,7 +272,8 @@ def tables(
     try:
         info = inspect_sink(sink, recent_runs=runs)
     except Exception as err:
-        typer.echo(f"error: {err}", err=True)
+        logging.getLogger(__name__).debug("inspect_sink raised", exc_info=err)
+        typer.echo(f"error: {type(err).__name__}: {err}", err=True)
         raise typer.Exit(code=EXIT_PREFLIGHT_ERROR) from err
     typer.echo(render_inspection(info))
 

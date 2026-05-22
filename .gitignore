@@ -45,5 +45,5 @@ Thumbs.db
 errors.jsonl
 output/
 
-# Local-only design notes (not published to GitHub)
+# Local-only design notes
 plan/

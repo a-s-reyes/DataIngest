@@ -8,12 +8,14 @@ Lists user tables with their row counts and the most recent entries from the
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy import MetaData, create_engine, text
 
 from .manifest import MANIFEST_TABLE_NAME
 from .sinks import get as get_sink
 from .uri import parse as parse_uri
+from .uri import resolve_uri_path
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,15 @@ class SinkInspection:
 def inspect_sink(sink_uri: str, *, recent_runs: int = 5) -> SinkInspection:
     """Connect to ``sink_uri``, enumerate tables + last ``recent_runs`` manifest rows."""
     parsed = parse_uri(sink_uri)
+
+    # SQLite auto-creates a database file on connect. For ``tables`` that is a
+    # footgun — a user who typos the path gets a fake "no tables" report and a
+    # stray empty file. Refuse to open a non-existent sqlite file explicitly.
+    if parsed.scheme == "sqlite":
+        fs_path = resolve_uri_path(parsed.path)
+        if not Path(fs_path).exists():
+            raise FileNotFoundError(f"sqlite database not found: {fs_path}")
+
     sink_cls = get_sink(parsed.scheme)
     sink_inst = sink_cls(parsed.path, parsed.params)
     url = sink_inst._make_url()

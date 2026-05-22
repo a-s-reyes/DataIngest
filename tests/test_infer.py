@@ -228,6 +228,16 @@ def test_infer_handles_custom_delimiter(tmp_path: Path) -> None:
     assert "name" in m["fields"]
 
 
+def test_infer_strips_utf8_bom_from_first_field(tmp_path: Path) -> None:
+    """B6 regression: a BOM-prefixed CSV (Excel default) used to leave
+    ``\\ufeff`` baked into the first inferred field name."""
+    csv = _write(tmp_path / "bom.csv", "﻿record_id,name\nTM-1,alpha\n")
+    m = infer_mapping(csv)
+    assert "record_id" in m["fields"]
+    assert "﻿record_id" not in m["fields"]
+    assert m["target"]["primary_key"] == "record_id"
+
+
 # --- xlsx support ---
 
 

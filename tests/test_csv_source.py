@@ -41,6 +41,22 @@ def test_custom_delimiter(tmp_path: Path) -> None:
     assert rows[1]["value"] == "2"
 
 
+def test_utf8_bom_is_stripped_from_first_header(tmp_path: Path) -> None:
+    """B6 regression: Excel saves CSV with a UTF-8 BOM (``\\ufeff``) at the
+    start of the file. The default ``utf-8-sig`` encoding strips it; the
+    first header name must come back clean."""
+    csv = tmp_path / "bom.csv"
+    csv.write_text("﻿record_id,channel\nTM-1,ACC_X\n", encoding="utf-8")
+
+    src = CsvSource(str(csv), {})
+    rows = list(src.rows())
+    assert rows == [
+        {"0": "TM-1", "1": "ACC_X", "record_id": "TM-1", "channel": "ACC_X"},
+    ]
+    # The first header key must not carry the BOM character.
+    assert "﻿record_id" not in rows[0]
+
+
 def test_relative_csv_uri_resolves_against_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
