@@ -21,6 +21,41 @@ def test_version() -> None:
     assert "0.1.0" in result.stdout
 
 
+def test_app_help_strings_are_ascii_only() -> None:
+    """Regression: Windows cp1252 terminals crash on non-ASCII characters when
+    rendering Typer's app description. Rich auto-falls-back to ASCII for its
+    own frame chars, but values we set in ``help=`` go through verbatim — so
+    keep every help string we control ASCII-clean."""
+
+    def assert_ascii(label: str, value: str | None) -> None:
+        if value is None:
+            return
+        try:
+            value.encode("ascii")
+        except UnicodeEncodeError as err:
+            raise AssertionError(f"non-ASCII in {label}: {value!r}") from err
+
+    assert_ascii("app.info.help", app.info.help)
+    for cmd in app.registered_commands:
+        assert_ascii(f"{cmd.name} help", cmd.help)
+        if cmd.callback is not None and cmd.callback.__doc__ is not None:
+            assert_ascii(f"{cmd.name} docstring", cmd.callback.__doc__)
+
+
+def test_all_helps_render_without_crashing() -> None:
+    """Sanity: every --help invocation exits 0 (rich handles its own framing)."""
+    for argv in [
+        ["--help"],
+        ["run", "--help"],
+        ["validate", "--help"],
+        ["infer", "--help"],
+        ["tables", "--help"],
+        ["version", "--help"],
+    ]:
+        result = runner.invoke(app, argv)
+        assert result.exit_code == 0, f"{argv} failed: {result.output}"
+
+
 def test_validate_ok(telemetry: MappingFixture) -> None:
     result = runner.invoke(app, ["validate", str(telemetry.mapping_yml)])
     assert result.exit_code == 0

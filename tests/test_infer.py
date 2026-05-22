@@ -160,6 +160,24 @@ def test_dump_mapping_yields_loadable_yaml(tmp_path: Path) -> None:
     assert "amount" in loaded.fields
 
 
+def test_dump_mapping_never_emits_yaml_anchors(tmp_path: Path) -> None:
+    """Regression: PyYAML reuses identical lists as ``&id001`` / ``*id001``
+    anchors by default. The inferred mapping is meant to be edited by humans,
+    so we suppress anchors entirely — every cleaner list must appear inline."""
+    csv = _write(
+        tmp_path / "wide.csv",
+        # Six string columns -> six identical ``cleaners: [strip]`` lists in
+        # the inferred output. Anchor emission would kick in here.
+        "a,b,c,d,e,f\n1,2,3,4,5,6\nx,y,z,u,v,w\n",
+    )
+    yaml_text = dump_mapping(infer_mapping(csv))
+    # No anchor declarations or alias references anywhere in the output.
+    assert "&id" not in yaml_text
+    assert "*id" not in yaml_text
+    # The cleaners list must appear inline at every field.
+    assert yaml_text.count("- strip") >= 6
+
+
 # --- T3.2 done-when: full round-trip e2e ---
 
 

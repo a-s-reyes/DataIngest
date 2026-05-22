@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import sys
 from pathlib import Path
@@ -12,9 +13,26 @@ from .infer import DEFAULT_SAMPLE_SIZE, dump_mapping, infer_mapping
 from .inspect import inspect_sink, render_inspection
 from .pipeline import DEFAULT_CHUNK_SIZE, Pipeline, RunResult
 
+
+def _reconfigure_streams_utf8() -> None:
+    """Promote stdout/stderr to UTF-8 so non-ASCII bytes never abort the process.
+
+    Some Windows terminals default to cp1252; vendor data with accents,
+    currency symbols, etc., would otherwise crash on output.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        with contextlib.suppress(AttributeError, ValueError):
+            reconfigure(encoding="utf-8", errors="replace")
+
+
+_reconfigure_streams_utf8()
+
 app = typer.Typer(
     name="dataingest",
-    help="Config-driven CSV → SQL ingestion tool.",
+    help="Config-driven CSV/Excel to SQL ingestion tool.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -197,7 +215,7 @@ def infer(
 
     Format autodetected from the file extension (``.xlsx`` / ``.xlsm`` ->
     xlsx, everything else -> csv). The output is a runnable mapping that
-    you should review and tighten — types and cleaners are inferred from
+    you should review and tighten: types and cleaners are inferred from
     the first N rows, primary key is the first column with all-unique
     non-null values, and ``on_conflict`` defaults to ``skip``.
 

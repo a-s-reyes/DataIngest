@@ -67,7 +67,7 @@ def resolve(spec: str) -> CleanerFn:
         if spec in REGISTRY:
             return REGISTRY[spec]
         if spec in FACTORY_REGISTRY:
-            raise ValueError(f"cleaner {spec!r} requires arguments — use {spec}(...) syntax")
+            raise ValueError(f"cleaner {spec!r} requires arguments; use {spec}(...) syntax")
         raise ValueError(f"unknown cleaner: {spec!r}")
     name, args_text = m.group(1), m.group(2)
     if name in FACTORY_REGISTRY:
@@ -89,7 +89,7 @@ def validate_spec(spec: str) -> None:
         if spec in REGISTRY:
             return
         if spec in FACTORY_REGISTRY:
-            raise ValueError(f"cleaner {spec!r} requires arguments — use {spec}(...) syntax")
+            raise ValueError(f"cleaner {spec!r} requires arguments; use {spec}(...) syntax")
         raise ValueError(f"unknown cleaner: {spec!r}")
     name, args_text = m.group(1), m.group(2)
     if name in FACTORY_REGISTRY:

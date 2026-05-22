@@ -240,10 +240,24 @@ def infer_mapping(
     }
 
 
+class _NoAliasDumper(yaml.SafeDumper):
+    """SafeDumper subclass that never emits anchors/aliases.
+
+    Default PyYAML reuses anchors (``&id001`` / ``*id001``) for repeated
+    list/dict values — fine for compactness, ugly for the human who has to
+    open the inferred mapping and tighten it. Inlining each value keeps the
+    starter YAML readable and editable.
+    """
+
+    def ignore_aliases(self, data: Any) -> bool:
+        return True
+
+
 def dump_mapping(mapping: dict[str, Any]) -> str:
     """Serialize a mapping dict to a human-friendly YAML string."""
-    return yaml.safe_dump(
+    return yaml.dump(
         mapping,
+        Dumper=_NoAliasDumper,
         sort_keys=False,
         indent=2,
         default_flow_style=False,
