@@ -18,6 +18,7 @@ class SourceConfig(BaseModel):
     encoding: str = "utf-8"
     header: bool = True
     delimiter: str = ","
+    group_by: str | None = None
 
 
 class TargetConfig(BaseModel):
@@ -64,6 +65,7 @@ class ChildConfig(BaseModel):
     table: str
     foreign_key: str
     fields: dict[str, ChildFieldConfig]
+    for_each_row: bool = False
 
 
 class Mapping(BaseModel):
@@ -90,6 +92,13 @@ class Mapping(BaseModel):
                     raise ValueError(
                         f"child field {col!r} references unknown parent field {cf.from_!r}"
                     )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_group_by(self) -> Self:
+        gb = self.source.group_by
+        if gb is not None and gb not in self.fields:
+            raise ValueError(f"source.group_by {gb!r} not declared in fields")
         return self
 
     @model_validator(mode="after")

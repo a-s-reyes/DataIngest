@@ -1,7 +1,7 @@
 import contextlib
 import logging
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -42,6 +42,30 @@ def _literal_py_type(value: Any) -> type:
     if isinstance(value, float | Decimal):
         return Decimal
     return str
+
+
+_GROUP_SENTINEL: Any = object()
+
+
+def _grouped(
+    stream: Iterator[tuple[int, dict[str, Any]]],
+    key_field: str | None,
+) -> Iterator[list[tuple[int, dict[str, Any]]]]:
+    if key_field is None:
+        for item in stream:
+            yield [item]
+        return
+    group: list[tuple[int, dict[str, Any]]] = []
+    current_key: Any = _GROUP_SENTINEL
+    for index, cleaned in stream:
+        key = cleaned.get(key_field)
+        if group and key != current_key:
+            yield group
+            group = []
+        group.append((index, cleaned))
+        current_key = key
+    if group:
+        yield group
 
 
 def _build_row_model(mapping: Mapping) -> type[BaseModel]:
@@ -139,7 +163,9 @@ class Pipeline:
                     )
                 else:
                     fields[col] = ChildField("value", cf.value, _literal_py_type(cf.value))
-            specs.append(ChildSpec(child.table, child.foreign_key, fk_type, fields))
+            specs.append(
+                ChildSpec(child.table, child.foreign_key, fk_type, fields, child.for_each_row)
+            )
         return specs
 
     def run(self) -> RunResult:
@@ -202,47 +228,50 @@ class Pipeline:
 
         try:
             with JsonlErrorLog(err_target) as err_log:
-                for i, raw in enumerate(source.rows(), start=1):
-                    if self.limit is not None and result.rows_in >= self.limit:
-                        break
-                    result.rows_in += 1
 
-                    try:
-                        cleaned = self._apply_mapping(raw, cleaners)
-                    except _CleanerError as cf:
-                        err_log.write(
-                            RowError(
-                                row_number=i,
-                                source_file=src_parsed.path,
-                                field=cf.field,
-                                value=cf.value,
-                                rule="cleaner",
-                                message=cf.message,
+                def cleaned_stream() -> Iterator[tuple[int, dict[str, Any]]]:
+                    for i, raw in enumerate(source.rows(), start=1):
+                        if self.limit is not None and result.rows_in >= self.limit:
+                            break
+                        result.rows_in += 1
+                        try:
+                            cleaned = self._apply_mapping(raw, cleaners)
+                        except _CleanerError as cf:
+                            err_log.write(
+                                RowError(
+                                    row_number=i,
+                                    source_file=src_parsed.path,
+                                    field=cf.field,
+                                    value=cf.value,
+                                    rule="cleaner",
+                                    message=cf.message,
+                                )
                             )
-                        )
-                        result.rows_failed += 1
-                        continue
-
-                    try:
-                        cleaned = self._apply_transforms(cleaned, transforms)
-                    except _TransformError as tf:
-                        err_log.write(
-                            RowError(
-                                row_number=i,
-                                source_file=src_parsed.path,
-                                field=None,
-                                value=None,
-                                rule="transform",
-                                message=tf.message,
+                            result.rows_failed += 1
+                            continue
+                        try:
+                            cleaned = self._apply_transforms(cleaned, transforms)
+                        except _TransformError as tf:
+                            err_log.write(
+                                RowError(
+                                    row_number=i,
+                                    source_file=src_parsed.path,
+                                    field=None,
+                                    value=None,
+                                    rule="transform",
+                                    message=tf.message,
+                                )
                             )
-                        )
-                        result.rows_failed += 1
-                        continue
+                            result.rows_failed += 1
+                            continue
+                        yield i, cleaned
 
+                for group in _grouped(cleaned_stream(), self.mapping.source.group_by):
+                    first_i, parent_cleaned = group[0]
                     record = (
-                        {k: v for k, v in cleaned.items() if k not in transient}
+                        {k: v for k, v in parent_cleaned.items() if k not in transient}
                         if transient
-                        else cleaned
+                        else parent_cleaned
                     )
 
                     try:
@@ -253,7 +282,7 @@ class Pipeline:
                             field_name = str(loc[0]) if loc else None
                             err_log.write(
                                 RowError(
-                                    row_number=i,
+                                    row_number=first_i,
                                     source_file=src_parsed.path,
                                     field=".".join(str(p) for p in loc) or None,
                                     value=record.get(field_name) if field_name else None,
@@ -261,24 +290,26 @@ class Pipeline:
                                     message=str(err["msg"]),
                                 )
                             )
-                        result.rows_failed += 1
+                        result.rows_failed += len(group)
                         continue
 
                     if child_specs:
-                        pk_value = cleaned[self.mapping.target.primary_key]
+                        pk_value = parent_cleaned[self.mapping.target.primary_key]
                         children_rows: dict[str, list[dict[str, Any]]] = {}
                         for spec in child_specs:
-                            child_row: dict[str, Any] = {spec.foreign_key: pk_value}
-                            for col, cfield in spec.fields.items():
-                                if cfield.kind == "from":
-                                    child_row[col] = cleaned[cfield.ref]
-                                else:
-                                    child_row[col] = cfield.ref
-                            children_rows.setdefault(spec.table, []).append(child_row)
+                            members = group if spec.for_each_row else group[:1]
+                            for _, member in members:
+                                child_row: dict[str, Any] = {spec.foreign_key: pk_value}
+                                for col, cfield in spec.fields.items():
+                                    if cfield.kind == "from":
+                                        child_row[col] = member[cfield.ref]
+                                    else:
+                                        child_row[col] = cfield.ref
+                                children_rows.setdefault(spec.table, []).append(child_row)
                         batch.append(RelationalRow(parent_model, children_rows))
                     else:
                         batch.append(parent_model)
-                    result.rows_ok += 1
+                    result.rows_ok += len(group)
 
                     if len(batch) >= self.chunk_size:
                         flush()

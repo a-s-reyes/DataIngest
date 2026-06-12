@@ -17,6 +17,7 @@ class ChildSpec:
     foreign_key: str
     fk_type: type
     fields: dict[str, ChildField]
+    for_each_row: bool = False
 
 
 @dataclass
