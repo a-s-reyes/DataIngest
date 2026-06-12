@@ -96,7 +96,6 @@ def test_rerun_with_skip_is_idempotent(any_mapping: MappingFixture, tmp_path: Pa
 
 
 def test_telemetry_decimal_value_round_trips(telemetry: MappingFixture, tmp_path: Path) -> None:
-    """Specific assertion: telemetry value column survives the Decimal round-trip."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(telemetry.mapping_yml)
     Pipeline(
@@ -122,7 +121,6 @@ def test_telemetry_decimal_value_round_trips(telemetry: MappingFixture, tmp_path
 
 
 def test_telemetry_datetime_round_trips(telemetry: MappingFixture, tmp_path: Path) -> None:
-    """ISO 8601 with trailing Z survives source -> parse_datetime_iso -> SQLite DateTime -> SELECT."""
     from datetime import datetime as _dt
 
     db_path = tmp_path / "out.db"
@@ -141,9 +139,6 @@ def test_telemetry_datetime_round_trips(telemetry: MappingFixture, tmp_path: Pat
         ).first()
         assert row is not None
         assert row.record_id == "TM-00001"
-        # SQLAlchemy stores DateTime as ISO text in SQLite; raw `text()` selects
-        # bypass column-typed hydration, so we parse the round-tripped value
-        # back to confirm the timestamp survived end to end.
         parsed = _dt.fromisoformat(str(row.recorded_at))
         assert parsed.year == 2026
         assert parsed.month == 4
@@ -153,7 +148,6 @@ def test_telemetry_datetime_round_trips(telemetry: MappingFixture, tmp_path: Pat
 
 
 def test_qualification_us_date_parses(qualification: MappingFixture, tmp_path: Path) -> None:
-    """Specific assertion: qualification MM/DD/YYYY dates parse correctly."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(qualification.mapping_yml)
     Pipeline(
@@ -177,7 +171,6 @@ def test_qualification_us_date_parses(qualification: MappingFixture, tmp_path: P
 
 
 def test_parts_inventory_iso_date_parses(parts_inventory: MappingFixture, tmp_path: Path) -> None:
-    """Specific assertion: parts inventory ISO dates parse correctly."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(parts_inventory.mapping_yml)
     Pipeline(
@@ -199,7 +192,6 @@ def test_parts_inventory_iso_date_parses(parts_inventory: MappingFixture, tmp_pa
 
 
 def test_invalid_row_logged_to_errors(qualification: MappingFixture, tmp_path: Path) -> None:
-    """A bad decimal in a required field routes the row to errors.jsonl."""
     bad_csv = tmp_path / "bad.csv"
     bad_csv.write_text(
         "test_id,part_number,run_date,parameter,measured_value,tolerance,result,technician\n"
@@ -226,7 +218,6 @@ def test_invalid_row_logged_to_errors(qualification: MappingFixture, tmp_path: P
 
 
 def test_validation_error_logged(tmp_path: Path) -> None:
-    """Pydantic validation error (decimal coercion failure with no cleaners)."""
     bad_mapping = tmp_path / "no_cleaners.yml"
     bad_mapping.write_text(
         """

@@ -6,15 +6,15 @@ from typing import IO, Self
 
 
 class DataIngestError(Exception):
-    """Base class for all DataIngest errors."""
+    pass
 
 
 class MappingError(DataIngestError):
-    """Raised when a YAML mapping is invalid."""
+    pass
 
 
 class RowValidationError(DataIngestError):
-    """Raised when a single row fails validation."""
+    pass
 
 
 @dataclass(frozen=True)
@@ -28,21 +28,6 @@ class RowError:
 
 
 class JsonlErrorLog:
-    """Append-only JSONL error log. One JSON object per failed row.
-
-    Accepts either a ``Path`` (opened for append in ``__enter__`` and closed in
-    ``__exit__``) or an already-open ``IO[str]`` file-like (e.g. ``sys.stderr``)
-    that the caller owns.
-
-    Use as a context manager either way::
-
-        with JsonlErrorLog(Path("errors.jsonl")) as log:
-            log.write(RowError(row_number=42, ...))
-
-        with JsonlErrorLog(sys.stderr) as log:
-            log.write(RowError(...))
-    """
-
     def __init__(self, target: Path | IO[str]) -> None:
         if isinstance(target, Path):
             self.path: Path | None = target

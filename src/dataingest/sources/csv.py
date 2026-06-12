@@ -9,18 +9,8 @@ from . import register
 
 @register("csv")
 class CsvSource:
-    """Reads rows from a delimited text file.
-
-    Yields each data row as a dict with both ``"<index>"`` and (when present)
-    header-name keys, so a YAML mapping may reference columns by either.
-    """
-
     def __init__(self, path: str, params: dict[str, str]) -> None:
         self.path = Path(resolve_uri_path(path))
-        # ``utf-8-sig`` strips a UTF-8 BOM if present (common in Excel-exported
-        # CSVs) and otherwise behaves identically to plain utf-8. Users with
-        # other encodings (e.g. ``cp1252`` from Windows Excel "Save As CSV")
-        # still override via the URI param.
         self.encoding = params.get("encoding", "utf-8-sig")
         self.delimiter = params.get("delimiter", ",")
         self.has_header = params.get("header", "true").lower() in ("true", "1", "yes")
@@ -38,5 +28,4 @@ class CsvSource:
                 yield row
 
     def close(self) -> None:
-        # File is opened/closed inside rows() via context manager.
         pass

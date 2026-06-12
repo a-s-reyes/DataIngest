@@ -1,5 +1,3 @@
-"""Integration tests for the run manifest table (`_dataingest_runs`)."""
-
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
@@ -69,7 +67,7 @@ def test_manifest_row_records_run_metadata(telemetry: MappingFixture, tmp_path: 
     assert row["rows_failed"] == 0
     assert row["chunks_written"] == 1
     assert row["dataingest_version"] == __version__
-    assert row["dry_run"] == 0  # Boolean → 0 in SQLite
+    assert row["dry_run"] == 0
     assert row["status"] == "success"
     assert row["started_at"] is not None
     assert row["finished_at"] is not None
@@ -91,7 +89,6 @@ def test_each_run_appends_a_new_manifest_row(telemetry: MappingFixture, tmp_path
     rows = _manifest_rows(db_path)
     assert len(rows) == 3
     assert {row["run_id"] for row in rows} == set(run_ids)
-    # Every run gets a unique id
     assert len(set(run_ids)) == 3
 
 
@@ -105,14 +102,12 @@ def test_dry_run_does_not_write_manifest(telemetry: MappingFixture, tmp_path: Pa
         error_log=tmp_path / "errors.jsonl",
     ).run()
 
-    # Dry-run never opens the sink, so the DB file should not exist at all.
     assert not db_path.exists()
 
 
 def test_partial_failure_writes_partial_status(
     qualification: MappingFixture, tmp_path: Path
 ) -> None:
-    """Some rows succeed, some fail → status='partial'."""
     mixed_csv = tmp_path / "mixed.csv"
     mixed_csv.write_text(
         "test_id,part_number,run_date,parameter,measured_value,tolerance,result,technician\n"
@@ -138,7 +133,6 @@ def test_partial_failure_writes_partial_status(
 
 
 def test_all_rows_fail_writes_failed_status(qualification: MappingFixture, tmp_path: Path) -> None:
-    """rows_in > 0, rows_ok == 0 → status='failed'."""
     bad_csv = tmp_path / "bad.csv"
     bad_csv.write_text(
         "test_id,part_number,run_date,parameter,measured_value,tolerance,result,technician\n"
@@ -179,15 +173,10 @@ def test_manifest_records_source_uri_and_error_log_path(
 
 
 def test_derive_status_truth_table() -> None:
-    # rows_in == 0 → vacuous success
     assert derive_status(0, 0, errored=False) == "success"
-    # all rows ok
     assert derive_status(10, 10, errored=False) == "success"
-    # mixed
     assert derive_status(10, 7, errored=False) == "partial"
-    # all rows failed
     assert derive_status(10, 0, errored=False) == "failed"
-    # exception always wins
     assert derive_status(10, 10, errored=True) == "failed"
     assert derive_status(0, 0, errored=True) == "failed"
 
@@ -195,8 +184,6 @@ def test_derive_status_truth_table() -> None:
 def test_idempotent_rerun_with_skip_logs_each_attempt(
     telemetry: MappingFixture, tmp_path: Path
 ) -> None:
-    """`on_conflict: skip` data writes are idempotent, but the manifest still
-    records every invocation as a separate run."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(telemetry.mapping_yml)
     for _ in range(2):
@@ -209,13 +196,10 @@ def test_idempotent_rerun_with_skip_logs_each_attempt(
 
     rows = _manifest_rows(db_path)
     assert len(rows) == 2
-    # First run inserts 20, second run finds 20 dupes and skips them.
-    # rows_ok counts pre-skip (the rows that survived validation), so both
-    # manifest rows should report 20.
     assert all(row["rows_ok"] == 20 for row in rows)
     assert all(row["status"] == "success" for row in rows)
 
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as conn:
         count = conn.execute(text("SELECT COUNT(*) FROM telemetry_records")).scalar()
-        assert count == 20  # idempotent at the data level
+        assert count == 20

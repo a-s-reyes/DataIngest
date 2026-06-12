@@ -15,11 +15,6 @@ from .pipeline import DEFAULT_CHUNK_SIZE, Pipeline, RunResult
 
 
 def _reconfigure_streams_utf8() -> None:
-    """Promote stdout/stderr to UTF-8 so non-ASCII bytes never abort the process.
-
-    Some Windows terminals default to cp1252; vendor data with accents,
-    currency symbols, etc., would otherwise crash on output.
-    """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
@@ -37,29 +32,27 @@ app = typer.Typer(
     add_completion=False,
 )
 
-# Exit codes — see README "Exit codes" section.
 EXIT_OK = 0
-EXIT_PREFLIGHT_ERROR = 1  # mapping load / URI / config error before any rows touched
-EXIT_PARTIAL_FAILURE = 2  # rows_in > 0 and 0 < rows_ok < rows_in
-EXIT_TOTAL_FAILURE = 3  # rows_in > 0 and rows_ok == 0
+EXIT_PREFLIGHT_ERROR = 1
+EXIT_PARTIAL_FAILURE = 2
+EXIT_TOTAL_FAILURE = 3
 
 
 _LOG_LEVELS = [logging.WARNING, logging.INFO, logging.DEBUG]
 
 
 def _configure_logging(verbose: int, quiet: bool) -> None:
-    # Quiet silences non-error logs; verbose lifts the floor.
     level = logging.ERROR if quiet else _LOG_LEVELS[min(verbose, len(_LOG_LEVELS) - 1)]
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-        force=True,  # override any prior basicConfig from imports
+        force=True,
     )
 
 
 def _exit_code_from(result: RunResult) -> int:
     if result.rows_in == 0:
-        return EXIT_OK  # vacuous success — nothing to ingest
+        return EXIT_OK
     if result.rows_ok == 0:
         return EXIT_TOTAL_FAILURE
     if result.rows_failed > 0:
@@ -142,8 +135,6 @@ def run(
         )
         result = pipeline.run()
     except Exception as err:
-        # Convert any runtime failure to a clean preflight error. The full
-        # traceback still lands in the verbose log if the user passed -vv.
         logging.getLogger(__name__).debug("pipeline raised", exc_info=err)
         typer.echo(f"error: {type(err).__name__}: {err}", err=True)
         raise typer.Exit(code=EXIT_PREFLIGHT_ERROR) from err

@@ -1,14 +1,3 @@
-"""Integration tests for PostgresSink.
-
-Skipped unless ``DATAINGEST_TEST_POSTGRES_URL`` is set in the environment.
-CI sets it via the ``services: postgres`` container; locally, run a Docker
-postgres and export the URL — see README for the exact recipe.
-
-Each test runs against a unique table name so reruns are clean. The shared
-``_dataingest_runs`` manifest table is dropped between tests so manifest
-assertions stay deterministic.
-"""
-
 import os
 import uuid
 from collections.abc import Iterator
@@ -114,7 +103,6 @@ def test_replace_mode_overwrites_duplicates(pg_path: str, pg_table: str) -> None
 
 
 def test_replace_mode_inserts_new_rows_too(pg_path: str, pg_table: str) -> None:
-    """``replace`` mode should still insert non-conflicting rows."""
     sink = PostgresSink(pg_path, {})
     sink.begin(_Row, table=pg_table, primary_key="id", on_conflict="replace")
     sink.write([_Row(id="A", name="alpha")])
@@ -134,7 +122,6 @@ def test_unsupported_conflict_mode_rejected(pg_path: str, pg_table: str) -> None
 
 
 def test_e2e_through_pipeline(pg_path: str, pg_table: str, tmp_path: Path) -> None:
-    """Full pipeline: csv source -> postgres sink, including manifest write."""
     csv = tmp_path / "data.csv"
     csv.write_text("id,name,amount\nA,alpha,1\nB,beta,2\nC,gamma,3\n", encoding="utf-8")
 
@@ -190,7 +177,6 @@ fields:
 
 
 def test_postgresql_uri_alias_resolves_to_same_sink() -> None:
-    """``postgres://`` and ``postgresql://`` should both register the same sink."""
     from dataingest.sinks import REGISTRY
 
     assert REGISTRY["postgres"] is REGISTRY["postgresql"]

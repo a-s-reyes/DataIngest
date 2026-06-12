@@ -1,5 +1,3 @@
-"""Sanity checks for source/sink registries."""
-
 import pytest
 
 from dataingest import sinks, sources
@@ -30,7 +28,6 @@ def test_postgres_sink_registered() -> None:
 
 
 def test_postgresql_alias_resolves_to_same_class() -> None:
-    """Both ``postgres://`` and ``postgresql://`` should map to the same sink."""
     assert sinks.REGISTRY["postgres"] is sinks.REGISTRY["postgresql"]
 
 

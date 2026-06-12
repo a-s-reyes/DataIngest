@@ -4,8 +4,6 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class Source(Protocol):
-    """Emits raw rows from some external source."""
-
     def rows(self) -> Iterator[dict[str, Any]]: ...
     def close(self) -> None: ...
 
@@ -30,9 +28,7 @@ def get(scheme: str) -> type:
 
 
 from .._plugins import load_entry_points  # noqa: E402
-from . import csv as _csv  # noqa: F401, E402  -- triggers registration
-from . import xlsx as _xlsx  # noqa: F401, E402  -- triggers registration (lazy openpyxl import)
+from . import csv as _csv  # noqa: F401, E402
+from . import xlsx as _xlsx  # noqa: F401, E402
 
-# Third-party plugins via the ``dataingest.sources`` entry-point group.
-# Built-ins above always win.
 load_entry_points("dataingest.sources", REGISTRY)

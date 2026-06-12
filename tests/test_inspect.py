@@ -1,5 +1,3 @@
-"""Tests for ``inspect_sink`` and the ``dataingest tables`` CLI command."""
-
 from pathlib import Path
 
 import pytest
@@ -16,7 +14,6 @@ from .conftest import MappingFixture
 
 
 def _seed_sqlite(telemetry: MappingFixture, tmp_path: Path, runs: int = 1) -> Path:
-    """Run the pipeline ``runs`` times to populate a sqlite sink + manifest."""
     db_path = tmp_path / "out.db"
     mapping = Mapping.from_yaml(telemetry.mapping_yml)
     for _ in range(runs):
@@ -63,7 +60,6 @@ def test_inspect_runs_param_zero_returns_no_run_history(
 
 
 def test_inspect_handles_empty_database(tmp_path: Path) -> None:
-    """Inspecting a fresh, empty sink returns no tables and no runs without raising."""
     db_path = tmp_path / "empty.db"
     db_path.touch()
     info = inspect_sink(f"sqlite:///{db_path.as_posix()}")
@@ -79,7 +75,7 @@ def test_render_inspection_includes_table_and_run_lines(
     rendered = render_inspection(info)
     assert "telemetry_records" in rendered
     assert "_dataingest_runs" in rendered
-    assert "20" in rendered  # row count
+    assert "20" in rendered
     assert "recent runs" in rendered
     assert "success" in rendered
 

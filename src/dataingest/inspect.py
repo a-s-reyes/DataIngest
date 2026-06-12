@@ -1,10 +1,3 @@
-"""Sink inspection — power for the ``dataingest tables`` CLI command.
-
-Lists user tables with their row counts and the most recent entries from the
-``_dataingest_runs`` audit table. Works against any sink registered in the
-``sinks.REGISTRY`` because URL construction is delegated to the sink class.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -43,12 +36,8 @@ class SinkInspection:
 
 
 def inspect_sink(sink_uri: str, *, recent_runs: int = 5) -> SinkInspection:
-    """Connect to ``sink_uri``, enumerate tables + last ``recent_runs`` manifest rows."""
     parsed = parse_uri(sink_uri)
 
-    # SQLite auto-creates a database file on connect. For ``tables`` that is a
-    # footgun — a user who typos the path gets a fake "no tables" report and a
-    # stray empty file. Refuse to open a non-existent sqlite file explicitly.
     if parsed.scheme == "sqlite":
         fs_path = resolve_uri_path(parsed.path)
         if not Path(fs_path).exists():
@@ -98,7 +87,6 @@ def inspect_sink(sink_uri: str, *, recent_runs: int = 5) -> SinkInspection:
 
 
 def render_inspection(insp: SinkInspection) -> str:
-    """Format a :class:`SinkInspection` as a human-readable ASCII report."""
     lines: list[str] = [f"sink: {insp.url}", ""]
     if not insp.tables:
         lines.append("  (no tables)")

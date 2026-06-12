@@ -1,10 +1,3 @@
-"""Run manifest types and helpers.
-
-Each pipeline invocation writes a single row to the sink's ``_dataingest_runs``
-table — the audit trail. ``RunManifest`` is the data carrier; sinks know how to
-persist it.
-"""
-
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
@@ -16,11 +9,9 @@ ManifestStatus = Literal["success", "partial", "failed"]
 
 @dataclass
 class RunManifest:
-    """Audit-trail record for one pipeline invocation."""
-
     run_id: str
-    started_at: str  # ISO 8601 UTC
-    finished_at: str  # ISO 8601 UTC
+    started_at: str
+    finished_at: str
     mapping_name: str
     source_uri: str
     target_table: str
@@ -35,16 +26,14 @@ class RunManifest:
 
 
 def now_iso() -> str:
-    """Current UTC time as an ISO 8601 string."""
     return datetime.now(UTC).isoformat()
 
 
 def derive_status(rows_in: int, rows_ok: int, errored: bool) -> ManifestStatus:
-    """Compute the manifest status from final pipeline counters."""
     if errored:
         return "failed"
     if rows_in == 0:
-        return "success"  # vacuous success: nothing to ingest
+        return "success"
     if rows_ok == rows_in:
         return "success"
     if rows_ok == 0:

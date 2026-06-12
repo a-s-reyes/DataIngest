@@ -25,9 +25,6 @@ def register(name: str) -> Callable[[CleanerFn], CleanerFn]:
 
 
 def register_factory(name: str) -> Callable[[CleanerFactory], CleanerFactory]:
-    """Register a cleaner *factory* — a callable that takes config args and
-    returns a ``CleanerFn``. Referenced from YAML as ``name(arg1, arg2)``."""
-
     def decorator(fn: CleanerFactory) -> CleanerFactory:
         if name in REGISTRY or name in FACTORY_REGISTRY:
             raise ValueError(f"cleaner {name!r} already registered")
@@ -38,11 +35,6 @@ def register_factory(name: str) -> Callable[[CleanerFactory], CleanerFactory]:
 
 
 def _parse_args(args_text: str) -> tuple[Any, ...]:
-    """Parse a cleaner spec's argument text via ``ast.literal_eval``.
-
-    Safe: ``literal_eval`` accepts only Python literals (str, int, float,
-    bool, None, tuple, list, dict, set), never code.
-    """
     args_text = args_text.strip()
     if not args_text:
         return ()
@@ -54,13 +46,6 @@ def _parse_args(args_text: str) -> tuple[Any, ...]:
 
 
 def resolve(spec: str) -> CleanerFn:
-    """Resolve a single cleaner spec string into a callable.
-
-    Forms:
-      ``"strip"``                        -> zero-arg cleaner from REGISTRY
-      ``"truncate(80)"``                 -> factory call from FACTORY_REGISTRY
-      ``"regex_replace('\\\\s+', ' ')"`` -> factory with multiple args
-    """
     spec = spec.strip()
     m = _CLEANER_CALL_RE.match(spec)
     if not m:
@@ -78,11 +63,6 @@ def resolve(spec: str) -> CleanerFn:
 
 
 def validate_spec(spec: str) -> None:
-    """Verify a cleaner spec parses and references a known cleaner.
-
-    Used by ``FieldConfig`` to fail-fast at YAML load time without actually
-    constructing the cleaner closure.
-    """
     spec = spec.strip()
     m = _CLEANER_CALL_RE.match(spec)
     if not m:
@@ -93,7 +73,7 @@ def validate_spec(spec: str) -> None:
         raise ValueError(f"unknown cleaner: {spec!r}")
     name, args_text = m.group(1), m.group(2)
     if name in FACTORY_REGISTRY:
-        _parse_args(args_text)  # raises on malformed args
+        _parse_args(args_text)
         return
     if name in REGISTRY:
         raise ValueError(f"cleaner {name!r} does not take arguments")
@@ -101,7 +81,6 @@ def validate_spec(spec: str) -> None:
 
 
 def chain(names: list[str]) -> CleanerFn:
-    """Compose a left-to-right cleaner chain from spec strings."""
     fns = [resolve(n) for n in names]
 
     def composed(value: Any) -> Any:
@@ -161,11 +140,6 @@ def parse_decimal(value: Any) -> Decimal | None:
 
 @register("parse_int")
 def parse_int(value: Any) -> int | None:
-    """Parse a string into an ``int``. Strips whitespace and underscores.
-
-    Rejects ``bool`` (a misleading int subclass), floats, and non-numeric
-    strings. Empty / ``None`` -> ``None``.
-    """
     if value is None or value == "":
         return None
     if isinstance(value, bool):
@@ -205,12 +179,6 @@ def parse_date_iso(value: Any) -> date | None:
 
 @register("parse_datetime_iso")
 def parse_datetime_iso(value: Any) -> datetime | None:
-    """Parse an ISO 8601 timestamp into a ``datetime``.
-
-    Accepts native ``datetime`` (passes through), ``date`` (promotes to
-    midnight), or any ISO 8601 string. The trailing ``Z`` UTC marker is
-    supported natively in Python 3.11+.
-    """
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
@@ -220,21 +188,8 @@ def parse_datetime_iso(value: Any) -> datetime | None:
     return datetime.fromisoformat(str(value).strip())
 
 
-# --- Parameterized cleaners (factories) ---
-
-
 @register_factory("regex_replace")
 def regex_replace(pattern: str, repl: str) -> CleanerFn:
-    """Substitute regex matches. Non-string inputs pass through unchanged.
-
-    In YAML, prefer raw-string syntax to avoid Python escape warnings::
-
-        cleaners: [regex_replace(r'\\s+', ' ')]
-
-    or double-backslashes::
-
-        cleaners: [regex_replace('\\\\s+', ' ')]
-    """
     compiled = re.compile(pattern)
 
     def cleaner(value: Any) -> Any:
@@ -247,7 +202,6 @@ def regex_replace(pattern: str, repl: str) -> CleanerFn:
 
 @register_factory("remove_chars")
 def remove_chars(chars: str) -> CleanerFn:
-    """Strip every character in ``chars`` from string inputs."""
     table = str.maketrans("", "", chars)
 
     def cleaner(value: Any) -> Any:
@@ -260,7 +214,6 @@ def remove_chars(chars: str) -> CleanerFn:
 
 @register_factory("truncate")
 def truncate(n: int) -> CleanerFn:
-    """Cap string length at ``n`` characters."""
     if not isinstance(n, int):
         raise ValueError(f"truncate length must be int, got {type(n).__name__}")
     if n < 0:
@@ -276,8 +229,6 @@ def truncate(n: int) -> CleanerFn:
 
 @register_factory("default_if_empty")
 def default_if_empty(default: Any) -> CleanerFn:
-    """Replace ``None`` or ``""`` with ``default``."""
-
     def cleaner(value: Any) -> Any:
         if value is None or value == "":
             return default

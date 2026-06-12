@@ -30,7 +30,6 @@ _TYPE_MAP: dict[FieldType, type] = {
 
 
 def _build_row_model(mapping: Mapping) -> type[BaseModel]:
-    """Build a Pydantic row model dynamically from the YAML field declarations."""
     fields: dict[str, tuple[Any, Any]] = {}
     for name, fc in mapping.fields.items():
         py_type: Any = _TYPE_MAP[fc.type]
@@ -43,12 +42,6 @@ def _build_row_model(mapping: Mapping) -> type[BaseModel]:
 
 
 class _CleanerError(Exception):
-    """Raised internally when a cleaner chain raises on a row's field.
-
-    Carries the offending field, raw value, and underlying message so the
-    pipeline can route the row to the JSONL error log without losing context.
-    """
-
     def __init__(self, field: str, value: Any, message: str) -> None:
         super().__init__(message)
         self.field = field
@@ -69,12 +62,6 @@ class RunResult:
 
 
 class Pipeline:
-    """Orchestrates source → mapping → validation → sink.
-
-    Validated rows are flushed to the sink in batches of ``chunk_size`` so that
-    peak memory stays bounded regardless of input size.
-    """
-
     def __init__(
         self,
         source_uri: str,
@@ -113,8 +100,6 @@ class Pipeline:
         row_model = _build_row_model(self.mapping)
 
         err_target: Path | IO[str] = self.error_log or Path.cwd() / "errors.jsonl"
-        # Path used for the manifest's error_log_path field. For file-like
-        # targets (e.g. sys.stderr) we record the stream name.
         err_path_for_manifest = (
             str(err_target)
             if isinstance(err_target, Path)
@@ -209,7 +194,6 @@ class Pipeline:
         finally:
             source.close()
             if not self.dry_run:
-                # Best-effort manifest write — never mask the original exception.
                 with contextlib.suppress(Exception):
                     sink.write_manifest(
                         RunManifest(

@@ -69,5 +69,4 @@ def parts_inventory(tmp_path: Path) -> MappingFixture:
 
 @pytest.fixture(params=["telemetry", "qualification", "parts_inventory"])
 def any_mapping(request: pytest.FixtureRequest) -> MappingFixture:
-    """Parameterized fixture — yields each mapping in turn."""
     return cast(MappingFixture, request.getfixturevalue(request.param))

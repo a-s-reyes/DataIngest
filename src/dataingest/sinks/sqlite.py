@@ -1,5 +1,3 @@
-"""SQLite sink — dialect-specific glue around ``_BaseSqlSink``."""
-
 from typing import Any
 
 from sqlalchemy import Table
@@ -12,13 +10,6 @@ from ._base import _BaseSqlSink
 
 @register("sqlite")
 class SqliteSink(_BaseSqlSink):
-    """Writes rows to a SQLite database via SQLAlchemy 2.0 Core.
-
-    Supports ``error`` and ``skip`` conflict modes. ``replace`` is deferred
-    (sqlite has ``ON CONFLICT DO UPDATE`` but we haven't built the column
-    map yet — see roadmap).
-    """
-
     SUPPORTED_CONFLICT_MODES = ("error", "skip")
 
     def __init__(self, path: str, params: dict[str, str]) -> None:

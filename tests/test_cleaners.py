@@ -28,8 +28,6 @@ def test_remove_currency_symbols() -> None:
     fn = REGISTRY["remove_currency_symbols"]
     assert fn("$1,234.56") == "1234.56"
     assert fn("£999.99") == "999.99"
-    # The cleaner targets US-style currency: strips the symbol AND commas.
-    # European decimal-comma formats need a different cleaner.
     assert fn("$ 50,000.00 ") == "50000.00"
 
 
@@ -92,8 +90,6 @@ def test_parse_date_us() -> None:
 
 
 def test_parse_date_us_extracts_from_datetime() -> None:
-    """Excel/openpyxl returns datetime even for date-only cells; the cleaner
-    must drop the time component cleanly."""
     dt = datetime(2026, 4, 12, 14, 22, 1)
     assert REGISTRY["parse_date_us"](dt) == date(2026, 4, 12)
 
@@ -116,7 +112,6 @@ def test_parse_datetime_iso_basic() -> None:
 
 
 def test_parse_datetime_iso_handles_z_marker() -> None:
-    """Python 3.11+ accepts trailing Z natively."""
     fn = REGISTRY["parse_datetime_iso"]
     expected = datetime(2026, 4, 12, 14, 22, 1, 250000, tzinfo=UTC)
     assert fn("2026-04-12T14:22:01.250Z") == expected
@@ -159,11 +154,7 @@ def test_chain_unknown_cleaner_raises() -> None:
         chain(["strip", "no_such_cleaner"])
 
 
-# --- Parameterized cleaners (T2.3) ---
-
-
 def test_regex_replace_substitutes_pattern() -> None:
-    # Use raw-string literal in the spec so Python doesn't warn on `\s`.
     fn = chain([r"regex_replace(r'\s+', ' ')"])
     assert fn("a   b\tc\nd") == "a b c d"
 

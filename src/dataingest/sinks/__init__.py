@@ -8,8 +8,6 @@ from ..manifest import RunManifest
 
 @runtime_checkable
 class Sink(Protocol):
-    """Writes validated rows to some destination."""
-
     def begin(
         self,
         model: type[BaseModel],
@@ -44,9 +42,7 @@ def get(scheme: str) -> type:
 
 
 from .._plugins import load_entry_points  # noqa: E402
-from . import postgres as _postgres  # noqa: F401, E402  -- triggers registration (lazy psycopg)
-from . import sqlite as _sqlite  # noqa: F401, E402  -- triggers registration
+from . import postgres as _postgres  # noqa: F401, E402
+from . import sqlite as _sqlite  # noqa: F401, E402
 
-# Third-party plugins via the ``dataingest.sinks`` entry-point group.
-# Built-ins above always win.
 load_entry_points("dataingest.sinks", REGISTRY)

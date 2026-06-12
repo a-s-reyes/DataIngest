@@ -1,6 +1,3 @@
-"""Tests for XlsxSource. openpyxl is generated/read in-process so no binary
-fixtures need to be checked in."""
-
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,9 +12,7 @@ from dataingest.sources.xlsx import XlsxSource
 
 
 def _make_workbook(path: Path, sheets: dict[str, list[list[Any]]]) -> None:
-    """Write a multi-sheet workbook. First key becomes the active sheet."""
     wb = Workbook()
-    # Workbook ships with an empty default sheet; replace it with the first one we want.
     default = wb.active
     if default is not None:
         wb.remove(default)
@@ -78,7 +73,6 @@ def test_sheet_param_selects_named_sheet(tmp_path: Path) -> None:
 
 
 def test_default_sheet_is_active(tmp_path: Path) -> None:
-    """When no sheet param is given, fall back to wb.active (first user sheet)."""
     xlsx = tmp_path / "multi.xlsx"
     _make_workbook(
         xlsx,
@@ -87,14 +81,12 @@ def test_default_sheet_is_active(tmp_path: Path) -> None:
             "Second": [["id"], ["B1"]],
         },
     )
-    src = XlsxSource(str(xlsx), {})  # no 'sheet' param
+    src = XlsxSource(str(xlsx), {})
     rows = list(src.rows())
     assert rows[0]["id"] == "A1"
 
 
 def test_native_types_preserved(tmp_path: Path) -> None:
-    """openpyxl returns native types (int, float, datetime) — the cleaner chain
-    handles coercion downstream. The source should not stringify."""
     xlsx = tmp_path / "types.xlsx"
     _make_workbook(
         xlsx,
@@ -113,7 +105,7 @@ def test_native_types_preserved(tmp_path: Path) -> None:
 
 def test_empty_workbook_yields_nothing(tmp_path: Path) -> None:
     xlsx = tmp_path / "empty.xlsx"
-    _make_workbook(xlsx, {"Sheet1": [["header_only"]]})  # header but no data rows
+    _make_workbook(xlsx, {"Sheet1": [["header_only"]]})
     rows = list(XlsxSource(str(xlsx), {}).rows())
     assert rows == []
 
@@ -123,7 +115,7 @@ def test_close_is_safe_to_call(tmp_path: Path) -> None:
     _make_workbook(xlsx, {"Sheet1": [["a"], ["1"]]})
     src = XlsxSource(str(xlsx), {})
     list(src.rows())
-    src.close()  # Should not raise even though workbook is already closed.
+    src.close()
 
 
 def test_unknown_sheet_raises(tmp_path: Path) -> None:
@@ -135,7 +127,6 @@ def test_unknown_sheet_raises(tmp_path: Path) -> None:
 
 
 def test_xlsx_e2e_through_pipeline(tmp_path: Path) -> None:
-    """Full pipeline: xlsx:// source -> mapping -> sqlite sink, 20 synthetic rows."""
     xlsx = tmp_path / "telemetry.xlsx"
     rows: list[list[Any]] = [["record_id", "channel", "value", "unit"]]
     for i in range(1, 21):

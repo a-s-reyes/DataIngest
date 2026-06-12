@@ -19,7 +19,6 @@ def _sqlite_uri(p: Path) -> str:
 
 
 def _make_synthetic_telemetry_csv(path: Path, n_rows: int) -> None:
-    """Write a CSV matching mappings/telemetry.yml with ``n_rows`` data rows."""
     header = "record_id,flight_id,recorded_at,channel,value,unit,quality\n"
     lines = [header]
     for i in range(1, n_rows + 1):
@@ -55,7 +54,6 @@ def test_chunk_size_must_be_positive(telemetry: MappingFixture, tmp_path: Path, 
 def test_chunks_written_matches_ceil_rows_over_chunk_size(
     telemetry: MappingFixture, tmp_path: Path, chunk_size: int
 ) -> None:
-    """chunks_written should be ceil(rows_ok / chunk_size) regardless of chunk_size."""
     pipeline = Pipeline(
         source_uri=_csv_uri(telemetry.csv),
         sink_uri=_sqlite_uri(tmp_path / "out.db"),
@@ -73,7 +71,6 @@ def test_chunks_written_matches_ceil_rows_over_chunk_size(
 def test_all_rows_land_regardless_of_chunk_size(
     telemetry: MappingFixture, tmp_path: Path, chunk_size: int
 ) -> None:
-    """The DB content must be identical no matter how rows were batched."""
     db_path = tmp_path / "out.db"
     Pipeline(
         source_uri=_csv_uri(telemetry.csv),
@@ -114,7 +111,6 @@ def test_dry_run_writes_no_chunks(telemetry: MappingFixture, tmp_path: Path) -> 
 
 
 def test_zero_valid_rows_writes_zero_chunks(qualification: MappingFixture, tmp_path: Path) -> None:
-    """A CSV where every row fails should produce 0 chunks_written."""
     bad_csv = tmp_path / "all_bad.csv"
     bad_csv.write_text(
         "test_id,part_number,run_date,parameter,measured_value,tolerance,result,technician\n"
@@ -138,7 +134,6 @@ def test_zero_valid_rows_writes_zero_chunks(qualification: MappingFixture, tmp_p
 
 
 def test_limit_caps_chunks(telemetry: MappingFixture, tmp_path: Path) -> None:
-    """--limit should cap rows BEFORE chunking, so chunks_written reflects the cap."""
     pipeline = Pipeline(
         source_uri=_csv_uri(telemetry.csv),
         sink_uri=_sqlite_uri(tmp_path / "out.db"),
@@ -151,12 +146,10 @@ def test_limit_caps_chunks(telemetry: MappingFixture, tmp_path: Path) -> None:
 
     assert result.rows_in == 7
     assert result.rows_ok == 7
-    # 7 rows / 3 per chunk = 3 chunks (3, 3, 1)
     assert result.chunks_written == 3
 
 
 def test_synthetic_large_run_streams_in_chunks(telemetry: MappingFixture, tmp_path: Path) -> None:
-    """Generate a CSV bigger than chunk_size to verify multi-chunk behavior end-to-end."""
     big_csv = tmp_path / "big.csv"
     _make_synthetic_telemetry_csv(big_csv, n_rows=5000)
 

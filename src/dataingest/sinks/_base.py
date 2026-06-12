@@ -1,16 +1,3 @@
-"""Shared SQL-sink machinery: table creation, bulk insert, manifest write.
-
-Concrete sinks (`SqliteSink`, `PostgresSink`, future `MssqlSink`) inherit from
-``_BaseSqlSink`` and override only the two dialect-specific bits:
-
-  * ``_make_url()`` — turn the parsed URI back into a SQLAlchemy URL
-  * ``_make_insert_stmt()`` — build the dialect-aware insert with the
-    appropriate ``on_conflict`` semantics
-
-Everything else — Pydantic-model → SQLAlchemy-table introspection, the
-manifest table schema, transaction management, type unwrapping — lives here.
-"""
-
 import types
 import typing
 from collections.abc import Iterable
@@ -46,7 +33,6 @@ _TYPE_TO_SQLA: dict[type, type] = {
 
 
 def _unwrap_optional(annotation: Any) -> Any:
-    """Reduce ``X | None`` / ``Optional[X]`` to ``X``."""
     origin = typing.get_origin(annotation)
     if origin in (typing.Union, types.UnionType):
         args = [a for a in typing.get_args(annotation) if a is not type(None)]
@@ -56,9 +42,6 @@ def _unwrap_optional(annotation: Any) -> Any:
 
 
 class _BaseSqlSink:
-    """Common SQL sink behavior. Subclasses override URL + insert builder."""
-
-    # Override in subclasses to widen.
     SUPPORTED_CONFLICT_MODES: tuple[str, ...] = ("error", "skip")
 
     def __init__(self, path: str, params: dict[str, str]) -> None:
@@ -69,16 +52,11 @@ class _BaseSqlSink:
         self.primary_key: str = ""
         self.on_conflict: str = "error"
 
-    # --- Hooks subclasses MUST implement ---
-
     def _make_url(self) -> str:
         raise NotImplementedError
 
     def _make_insert_stmt(self, table: Table) -> Any:
-        """Build an executable INSERT statement honoring ``self.on_conflict``."""
         raise NotImplementedError
-
-    # --- Shared protocol surface ---
 
     def begin(
         self,
@@ -165,7 +143,6 @@ class _BaseSqlSink:
             )
 
     def commit(self) -> None:
-        # engine.begin() commits on context exit; explicit commit is a no-op.
         pass
 
     def close(self) -> None:

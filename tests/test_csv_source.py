@@ -14,7 +14,6 @@ def test_yields_rows_with_index_and_header_keys(telemetry: MappingFixture) -> No
     assert len(rows) == telemetry.row_count
 
     first = rows[0]
-    # both index and header keys present
     assert first["0"] == "TM-00001"
     assert first["record_id"] == "TM-00001"
     assert first["3"] == "acc_x_fuselage"
@@ -42,9 +41,6 @@ def test_custom_delimiter(tmp_path: Path) -> None:
 
 
 def test_utf8_bom_is_stripped_from_first_header(tmp_path: Path) -> None:
-    """B6 regression: Excel saves CSV with a UTF-8 BOM (``\\ufeff``) at the
-    start of the file. The default ``utf-8-sig`` encoding strips it; the
-    first header name must come back clean."""
     csv = tmp_path / "bom.csv"
     csv.write_text("﻿record_id,channel\nTM-1,ACC_X\n", encoding="utf-8")
 
@@ -53,16 +49,12 @@ def test_utf8_bom_is_stripped_from_first_header(tmp_path: Path) -> None:
     assert rows == [
         {"0": "TM-1", "1": "ACC_X", "record_id": "TM-1", "channel": "ACC_X"},
     ]
-    # The first header key must not carry the BOM character.
     assert "﻿record_id" not in rows[0]
 
 
 def test_relative_csv_uri_resolves_against_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression: ``csv:///./file.csv`` used to fail because CsvSource only
-    handled the Windows drive-letter URI shape. Three-slash relative URIs are
-    legal per the same SQLAlchemy convention SqliteSink already followed."""
     raw = tmp_path / "data.csv"
     raw.write_text("a,b\n1,2\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)

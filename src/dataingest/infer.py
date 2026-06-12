@@ -1,17 +1,3 @@
-"""Schema inference: sniff a CSV's first N rows and emit a starter mapping YAML.
-
-The output is *opinionated but safe*. We default to ``str`` whenever a column
-isn't unambiguously something else, and we always pair each typed cleaner
-with ``strip`` so that incidental whitespace doesn't break a re-run. Users
-should review the emitted YAML and tighten it — the goal is to remove the
-80% of mechanical work, not to be perfect.
-
-Inference order (most specific wins, all non-empty samples must parse):
-
-    int  ->  decimal  ->  datetime (ISO)  ->  date (ISO or US)
-                 ->  bool (literals only)  ->  str (fallback)
-"""
-
 from __future__ import annotations
 
 import csv as _csv
@@ -29,7 +15,6 @@ DEFAULT_SAMPLE_SIZE = 100
 
 _BOOL_LITERALS = {"true", "false", "yes", "no", "y", "n", "t", "f"}
 
-# Cleaner chain templates per inferred type.
 _CLEANERS: dict[str, list[str]] = {
     "str": ["strip"],
     "int": ["strip", "parse_int"],
@@ -86,7 +71,6 @@ def _is_bool_literal(s: str) -> bool:
 
 
 def _infer_column(samples: list[str]) -> tuple[InferredType, str]:
-    """Return (pydantic_type_name, cleaner_key)."""
     non_empty = [s.strip() for s in samples if s.strip() != ""]
     if not non_empty:
         return ("str", "str")
@@ -113,7 +97,6 @@ def _read_samples_csv(
     delimiter: str = ",",
     encoding: str = "utf-8-sig",
 ) -> tuple[list[str], list[list[str]]]:
-    """Read header + up to ``sample_size`` data rows from a CSV."""
     with path.open("r", encoding=encoding, newline="") as fp:
         reader = _csv.reader(fp, delimiter=delimiter)
         header = next(reader, [])
@@ -130,11 +113,6 @@ def _read_samples_xlsx(
     sample_size: int = DEFAULT_SAMPLE_SIZE,
     sheet: str | None = None,
 ) -> tuple[list[str], list[list[str]]]:
-    """Read header + up to ``sample_size`` data rows from an .xlsx workbook.
-
-    Native cell types (int, float, datetime) are stringified at read time so
-    the same type-classifier helpers work for both csv and xlsx inputs.
-    """
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
@@ -162,7 +140,6 @@ def _detect_format(path: Path) -> Literal["csv", "xlsx"]:
 
 
 def _pick_primary_key(headers: list[str], rows: list[list[str]]) -> str | None:
-    """First column where every sampled value is non-empty and unique."""
     for col_idx, name in enumerate(headers):
         values = [row[col_idx].strip() if col_idx < len(row) else "" for row in rows]
         if any(v == "" for v in values):
@@ -183,17 +160,8 @@ def infer_mapping(
     sheet: str | None = None,
     format: Literal["csv", "xlsx"] | None = None,
 ) -> dict[str, Any]:
-    """Sniff a tabular file and return a mapping dict.
-
-    ``format`` defaults to autodetection from the file extension
-    (``.xlsx`` / ``.xlsm`` -> xlsx, everything else -> csv). Override
-    explicitly when the extension is misleading.
-    """
     fmt = format or _detect_format(path)
     if fmt == "xlsx":
-        # ``sheet`` only steers which sheet we *sample* during inference.
-        # The runtime sheet selection happens via URI param (xlsx:///...?sheet=X),
-        # not the mapping — so we do not echo it back into the output YAML.
         header, rows = _read_samples_xlsx(path, sample_size, sheet)
         source_block: dict[str, Any] = {"format": "xlsx", "header": True}
     else:
@@ -221,7 +189,6 @@ def infer_mapping(
         }
 
     primary_key = _pick_primary_key(header, rows) or header[0]
-    # Mark whichever field we picked as the PK as required, regardless of sample.
     if primary_key in fields:
         fields[primary_key]["required"] = True
 
@@ -241,20 +208,11 @@ def infer_mapping(
 
 
 class _NoAliasDumper(yaml.SafeDumper):
-    """SafeDumper subclass that never emits anchors/aliases.
-
-    Default PyYAML reuses anchors (``&id001`` / ``*id001``) for repeated
-    list/dict values — fine for compactness, ugly for the human who has to
-    open the inferred mapping and tighten it. Inlining each value keeps the
-    starter YAML readable and editable.
-    """
-
     def ignore_aliases(self, data: Any) -> bool:
         return True
 
 
 def dump_mapping(mapping: dict[str, Any]) -> str:
-    """Serialize a mapping dict to a human-friendly YAML string."""
     return yaml.dump(
         mapping,
         Dumper=_NoAliasDumper,
