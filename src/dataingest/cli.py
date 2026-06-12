@@ -7,6 +7,7 @@ from typing import IO, Annotated
 import typer
 
 from . import __version__
+from .appconfig import CONFIG_FILENAME, find_config, load_config
 from .config import Mapping
 from .errors import MappingError
 from .infer import DEFAULT_SAMPLE_SIZE, dump_mapping, infer_mapping
@@ -276,6 +277,34 @@ def tables(
 def version() -> None:
     """Print the DataIngest version."""
     typer.echo(__version__)
+
+
+@app.command()
+def tui() -> None:
+    """Launch the interactive terminal UI."""
+    try:
+        from .tui.app import DataIngestApp
+    except ImportError as err:
+        typer.echo("The TUI needs Textual. Install with: pip install dataingest[tui]", err=True)
+        raise typer.Exit(code=EXIT_PREFLIGHT_ERROR) from err
+    DataIngestApp().run()
+
+
+@app.command()
+def jobs() -> None:
+    """List the import jobs configured in dataingest.toml."""
+    cfg_path = find_config()
+    if cfg_path is None:
+        typer.echo(f"No {CONFIG_FILENAME} found in this folder.", err=True)
+        typer.echo("An admin sets one up with [destination] and [jobs.*] sections.", err=True)
+        raise typer.Exit(code=EXIT_PREFLIGHT_ERROR)
+    config = load_config(cfg_path)
+    if not config.jobs:
+        typer.echo("No jobs configured.")
+        return
+    for name, job in config.jobs.items():
+        suffix = f" - {job.description}" if job.description else ""
+        typer.echo(f"{name}{suffix}")
 
 
 if __name__ == "__main__":

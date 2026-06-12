@@ -27,6 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 xlsx = ["openpyxl>=3.1"]
 postgres = ["psycopg[binary]>=3.1"]
+tui = ["textual>=0.80"]
 
 [project.scripts]
 dataingest = "dataingest.cli:app"
@@ -39,6 +40,7 @@ Issues = "https://github.com/a-s-reyes/DataIngest/issues"
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
     "ruff>=0.4",
     "mypy>=1.10",
     "types-pyyaml>=6.0",
@@ -55,6 +57,7 @@ packages = ["src/dataingest"]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 pythonpath = ["src"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
