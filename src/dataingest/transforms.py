@@ -88,4 +88,51 @@ class SplitCityStateZip:
         return record
 
 
+@register("classify")
+class Classify:
+    def __init__(self, config: dict[str, Any]) -> None:
+        self.source = config["source"]
+        self.target = config["target"]
+        self.rules: list[tuple[list[str], Any]] = []
+        for rule in config["rules"]:
+            contains = rule["contains"]
+            if isinstance(contains, str):
+                contains = [contains]
+            self.rules.append(([str(c).lower() for c in contains], rule["value"]))
+        self._has_default = "default" in config
+        self.default = config.get("default")
+
+    def apply(self, record: dict[str, Any]) -> dict[str, Any]:
+        text = record.get(self.source)
+        haystack = text.lower() if isinstance(text, str) else ""
+        for needles, value in self.rules:
+            if all(n in haystack for n in needles):
+                record[self.target] = value
+                return record
+        if self._has_default:
+            record[self.target] = self.default
+            return record
+        raise ValueError(f"no classification rule matched {self.source}={text!r}")
+
+
+@register("lookup")
+class Lookup:
+    def __init__(self, config: dict[str, Any]) -> None:
+        self.source = config["source"]
+        self.target = config["target"]
+        self.table = config["table"]
+        self._has_default = "default" in config
+        self.default = config.get("default")
+
+    def apply(self, record: dict[str, Any]) -> dict[str, Any]:
+        key = record.get(self.source)
+        if key in self.table:
+            record[self.target] = self.table[key]
+        elif self._has_default:
+            record[self.target] = self.default
+        else:
+            raise ValueError(f"no lookup entry for {self.source}={key!r}")
+        return record
+
+
 load_entry_points("dataingest.transforms", REGISTRY)
