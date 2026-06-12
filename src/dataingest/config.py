@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any, Literal, Self
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .cleaners import validate_spec
 from .errors import MappingError
@@ -47,6 +47,25 @@ class FieldConfig(BaseModel):
         return self
 
 
+class ChildFieldConfig(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: str | None = Field(default=None, alias="from")
+    value: Any = None
+
+    @model_validator(mode="after")
+    def _one_source(self) -> Self:
+        if (self.from_ is not None) == (self.value is not None):
+            raise ValueError("child field must set exactly one of 'from' or 'value'")
+        return self
+
+
+class ChildConfig(BaseModel):
+    table: str
+    foreign_key: str
+    fields: dict[str, ChildFieldConfig]
+
+
 class Mapping(BaseModel):
     spec_version: int
     name: str
@@ -55,11 +74,22 @@ class Mapping(BaseModel):
     target: TargetConfig
     fields: dict[str, FieldConfig]
     transforms: list[dict[str, Any]] = Field(default_factory=list)
+    children: list[ChildConfig] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_primary_key_exists(self) -> Self:
         if self.target.primary_key not in self.fields:
             raise ValueError(f"primary_key {self.target.primary_key!r} not declared in fields")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_children(self) -> Self:
+        for child in self.children:
+            for col, cf in child.fields.items():
+                if cf.from_ is not None and cf.from_ not in self.fields:
+                    raise ValueError(
+                        f"child field {col!r} references unknown parent field {cf.from_!r}"
+                    )
         return self
 
     @model_validator(mode="after")

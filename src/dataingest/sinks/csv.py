@@ -27,6 +27,7 @@ class CsvSink:
         table: str,
         primary_key: str,
         on_conflict: str = "error",
+        children: list[Any] | None = None,
     ) -> None:
         self._columns = list(model.model_fields.keys())
         self.fs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,7 @@ class CsvSink:
         self._writer = _csv.DictWriter(self._fp, fieldnames=self._columns, delimiter=self.delimiter)
         self._writer.writeheader()
 
-    def write(self, rows: Iterable[BaseModel]) -> int:
+    def write(self, rows: Iterable[Any]) -> int:
         if self._writer is None:
             raise RuntimeError("call begin() before write()")
         count = 0

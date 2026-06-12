@@ -16,7 +16,9 @@ from .config import FieldType, Mapping
 from .errors import JsonlErrorLog, RowError
 from .manifest import RunManifest, derive_status, now_iso
 from .sinks import get as get_sink
+from .sinks._base import _BaseSqlSink
 from .sinks._multi import MultiSink
+from .sinks.relational import ChildField, ChildSpec, RelationalRow
 from .sources import get as get_source
 from .transforms import Transform
 from .transforms import build as build_transforms
@@ -30,6 +32,16 @@ _TYPE_MAP: dict[FieldType, type] = {
     "datetime": datetime,
     "bool": bool,
 }
+
+
+def _literal_py_type(value: Any) -> type:
+    if isinstance(value, bool):
+        return bool
+    if isinstance(value, int):
+        return int
+    if isinstance(value, float | Decimal):
+        return Decimal
+    return str
 
 
 def _build_row_model(mapping: Mapping) -> type[BaseModel]:
@@ -114,6 +126,22 @@ class Pipeline:
             sinks.append(get_sink(parsed.scheme)(parsed.path, parsed.params))
         return sinks[0] if len(sinks) == 1 else MultiSink(sinks)
 
+    def _build_child_specs(self) -> list[ChildSpec]:
+        pk = self.mapping.target.primary_key
+        fk_type = _TYPE_MAP[self.mapping.fields[pk].type]
+        specs: list[ChildSpec] = []
+        for child in self.mapping.children:
+            fields: dict[str, ChildField] = {}
+            for col, cf in child.fields.items():
+                if cf.from_ is not None:
+                    fields[col] = ChildField(
+                        "from", cf.from_, _TYPE_MAP[self.mapping.fields[cf.from_].type]
+                    )
+                else:
+                    fields[col] = ChildField("value", cf.value, _literal_py_type(cf.value))
+            specs.append(ChildSpec(child.table, child.foreign_key, fk_type, fields))
+        return specs
+
     def run(self) -> RunResult:
         log = logging.getLogger(__name__)
         src_parsed = parse_uri(self.source_uri)
@@ -127,6 +155,9 @@ class Pipeline:
         row_model = _build_row_model(self.mapping)
         transforms = build_transforms(self.mapping.transforms)
         transient = {name for name, fc in self.mapping.fields.items() if fc.transient}
+        child_specs = self._build_child_specs()
+        if child_specs and (isinstance(sink, MultiSink) or not isinstance(sink, _BaseSqlSink)):
+            raise ValueError("relational mappings (children) require a single SQL sink")
 
         err_target: Path | IO[str] = self.error_log or Path.cwd() / "errors.jsonl"
         err_path_for_manifest = (
@@ -136,7 +167,7 @@ class Pipeline:
         )
         result = RunResult()
         started_at = now_iso()
-        batch: list[BaseModel] = []
+        batch: list[Any] = []
         errored = False
         log.info(
             "pipeline starting run_id=%s mapping=%s source=%s sink=%s dry_run=%s",
@@ -153,6 +184,7 @@ class Pipeline:
                 table=self.mapping.target.table,
                 primary_key=self.mapping.target.primary_key,
                 on_conflict=self.mapping.target.on_conflict,
+                children=child_specs or None,
             )
 
         def flush() -> None:
@@ -214,8 +246,7 @@ class Pipeline:
                     )
 
                     try:
-                        batch.append(row_model(**record))
-                        result.rows_ok += 1
+                        parent_model = row_model(**record)
                     except ValidationError as exc:
                         for err in exc.errors():
                             loc = err["loc"]
@@ -232,6 +263,22 @@ class Pipeline:
                             )
                         result.rows_failed += 1
                         continue
+
+                    if child_specs:
+                        pk_value = cleaned[self.mapping.target.primary_key]
+                        children_rows: dict[str, list[dict[str, Any]]] = {}
+                        for spec in child_specs:
+                            child_row: dict[str, Any] = {spec.foreign_key: pk_value}
+                            for col, cfield in spec.fields.items():
+                                if cfield.kind == "from":
+                                    child_row[col] = cleaned[cfield.ref]
+                                else:
+                                    child_row[col] = cfield.ref
+                            children_rows.setdefault(spec.table, []).append(child_row)
+                        batch.append(RelationalRow(parent_model, children_rows))
+                    else:
+                        batch.append(parent_model)
+                    result.rows_ok += 1
 
                     if len(batch) >= self.chunk_size:
                         flush()

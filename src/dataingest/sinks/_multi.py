@@ -17,11 +17,18 @@ class MultiSink:
         table: str,
         primary_key: str,
         on_conflict: str = "error",
+        children: list[Any] | None = None,
     ) -> None:
         for sink in self._sinks:
-            sink.begin(model, table=table, primary_key=primary_key, on_conflict=on_conflict)
+            sink.begin(
+                model,
+                table=table,
+                primary_key=primary_key,
+                on_conflict=on_conflict,
+                children=children,
+            )
 
-    def write(self, rows: Iterable[BaseModel]) -> int:
+    def write(self, rows: Iterable[Any]) -> int:
         materialized = list(rows)
         count = 0
         for sink in self._sinks:
