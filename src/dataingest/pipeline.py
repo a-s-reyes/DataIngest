@@ -16,7 +16,10 @@ from .config import FieldType, Mapping
 from .errors import JsonlErrorLog, RowError
 from .manifest import RunManifest, derive_status, now_iso
 from .sinks import get as get_sink
+from .sinks._multi import MultiSink
 from .sources import get as get_source
+from .transforms import Transform
+from .transforms import build as build_transforms
 from .uri import parse as parse_uri
 
 _TYPE_MAP: dict[FieldType, type] = {
@@ -32,6 +35,8 @@ _TYPE_MAP: dict[FieldType, type] = {
 def _build_row_model(mapping: Mapping) -> type[BaseModel]:
     fields: dict[str, tuple[Any, Any]] = {}
     for name, fc in mapping.fields.items():
+        if fc.transient:
+            continue
         py_type: Any = _TYPE_MAP[fc.type]
         if fc.required:
             fields[name] = (py_type, ...)
@@ -46,6 +51,12 @@ class _CleanerError(Exception):
         super().__init__(message)
         self.field = field
         self.value = value
+        self.message = message
+
+
+class _TransformError(Exception):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
         self.message = message
 
 
@@ -65,7 +76,7 @@ class Pipeline:
     def __init__(
         self,
         source_uri: str,
-        sink_uri: str,
+        sink_uri: str | list[str],
         mapping: Mapping,
         *,
         dry_run: bool = False,
@@ -83,21 +94,39 @@ class Pipeline:
         self.error_log = error_log
         self.chunk_size = chunk_size
 
+    def _merge_source_params(self, uri_params: dict[str, str]) -> dict[str, str]:
+        sc = self.mapping.source
+        merged: dict[str, str] = {}
+        if "encoding" in sc.model_fields_set:
+            merged["encoding"] = sc.encoding
+        if "delimiter" in sc.model_fields_set:
+            merged["delimiter"] = sc.delimiter
+        if "header" in sc.model_fields_set:
+            merged["header"] = "true" if sc.header else "false"
+        merged.update(uri_params)
+        return merged
+
+    def _build_sink(self) -> Any:
+        uris = [self.sink_uri] if isinstance(self.sink_uri, str) else list(self.sink_uri)
+        sinks: list[Any] = []
+        for uri in uris:
+            parsed = parse_uri(uri)
+            sinks.append(get_sink(parsed.scheme)(parsed.path, parsed.params))
+        return sinks[0] if len(sinks) == 1 else MultiSink(sinks)
+
     def run(self) -> RunResult:
         log = logging.getLogger(__name__)
         src_parsed = parse_uri(self.source_uri)
-        sink_parsed = parse_uri(self.sink_uri)
-
         source_cls = get_source(src_parsed.scheme)
-        sink_cls = get_sink(sink_parsed.scheme)
-
-        source = source_cls(src_parsed.path, src_parsed.params)
-        sink = sink_cls(sink_parsed.path, sink_parsed.params)
+        source = source_cls(src_parsed.path, self._merge_source_params(src_parsed.params))
+        sink = self._build_sink()
 
         cleaners: dict[str, Callable[[Any], Any]] = {
             name: build_cleaner(fc.cleaners) for name, fc in self.mapping.fields.items()
         }
         row_model = _build_row_model(self.mapping)
+        transforms = build_transforms(self.mapping.transforms)
+        transient = {name for name, fc in self.mapping.fields.items() if fc.transient}
 
         err_target: Path | IO[str] = self.error_log or Path.cwd() / "errors.jsonl"
         err_path_for_manifest = (
@@ -163,7 +192,29 @@ class Pipeline:
                         continue
 
                     try:
-                        batch.append(row_model(**cleaned))
+                        cleaned = self._apply_transforms(cleaned, transforms)
+                    except _TransformError as tf:
+                        err_log.write(
+                            RowError(
+                                row_number=i,
+                                source_file=src_parsed.path,
+                                field=None,
+                                value=None,
+                                rule="transform",
+                                message=tf.message,
+                            )
+                        )
+                        result.rows_failed += 1
+                        continue
+
+                    record = (
+                        {k: v for k, v in cleaned.items() if k not in transient}
+                        if transient
+                        else cleaned
+                    )
+
+                    try:
+                        batch.append(row_model(**record))
                         result.rows_ok += 1
                     except ValidationError as exc:
                         for err in exc.errors():
@@ -174,7 +225,7 @@ class Pipeline:
                                     row_number=i,
                                     source_file=src_parsed.path,
                                     field=".".join(str(p) for p in loc) or None,
-                                    value=cleaned.get(field_name) if field_name else None,
+                                    value=record.get(field_name) if field_name else None,
                                     rule=str(err["type"]),
                                     message=str(err["msg"]),
                                 )
@@ -232,6 +283,8 @@ class Pipeline:
     ) -> dict[str, Any]:
         cleaned: dict[str, Any] = {}
         for name, fc in self.mapping.fields.items():
+            if fc.column is None:
+                continue
             key = str(fc.column)
             raw_value = raw.get(key)
             try:
@@ -239,3 +292,15 @@ class Pipeline:
             except Exception as exc:
                 raise _CleanerError(name, raw_value, str(exc)) from exc
         return cleaned
+
+    def _apply_transforms(
+        self,
+        record: dict[str, Any],
+        transforms: list[Transform],
+    ) -> dict[str, Any]:
+        for transform in transforms:
+            try:
+                record = transform.apply(record)
+            except Exception as exc:
+                raise _TransformError(str(exc)) from exc
+        return record

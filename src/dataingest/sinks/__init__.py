@@ -42,6 +42,7 @@ def get(scheme: str) -> type:
 
 
 from .._plugins import load_entry_points  # noqa: E402
+from . import csv as _csv  # noqa: F401, E402
 from . import postgres as _postgres  # noqa: F401, E402
 from . import sqlite as _sqlite  # noqa: F401, E402
 

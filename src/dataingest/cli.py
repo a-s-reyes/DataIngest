@@ -63,7 +63,10 @@ def _exit_code_from(result: RunResult) -> int:
 @app.command()
 def run(
     source: Annotated[str, typer.Option(help="Source URI, e.g. csv:///path/to/file.csv")],
-    sink: Annotated[str, typer.Option(help="Sink URI, e.g. sqlite:///./out.db")],
+    sink: Annotated[
+        list[str],
+        typer.Option(help="Sink URI (repeatable), e.g. sqlite:///./out.db"),
+    ],
     mapping: Annotated[Path, typer.Option(help="Path to YAML mapping file")],
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Validate without writing")] = False,
     limit: Annotated[int | None, typer.Option(help="Process at most N rows")] = None,
