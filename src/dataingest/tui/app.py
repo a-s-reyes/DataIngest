@@ -1,13 +1,22 @@
 from pathlib import Path
 from typing import ClassVar
 
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import BindingType
 from textual.containers import Horizontal
 from textual.widgets import Footer, Header, Input, Label, ListItem, ListView, RichLog
 
-from ..appconfig import AppConfig, find_config, load_config
-from .commands import destination_label, job_detail, job_rows, parse_command
+from ..appconfig import AppConfig, find_config, load_config, resolve_job
+from ..config import Mapping
+from ..pipeline import Pipeline
+from .commands import (
+    destination_label,
+    format_run_summary,
+    job_detail,
+    job_rows,
+    parse_command,
+)
 
 
 class DataIngestApp(App[None]):
@@ -93,7 +102,34 @@ class DataIngestApp(App[None]):
             self.exit()
         elif command.kind == "help":
             self._write_help()
+        elif command.kind == "run":
+            if command.job is None or command.file is None:
+                self.query_one("#output", RichLog).write("Usage: :run <job> <file>")
+            else:
+                self._run_job(command.job, command.file)
         else:
-            self.query_one("#output", RichLog).write(
-                f"'{event.value.strip()}' is not wired yet (coming in a later step)."
-            )
+            self.query_one("#output", RichLog).write(f"Unknown command: {event.value.strip()}")
+
+    @work(thread=True, exclusive=True)
+    def _run_job(self, job: str, file: str) -> None:
+        output = self.query_one("#output", RichLog)
+        self.call_from_thread(output.write, f"Running '{job}' on {file} ...")
+        if self._config is None:
+            self.call_from_thread(output.write, "No configuration loaded.")
+            return
+        try:
+            resolved = resolve_job(self._config, job, file, self._base_dir)
+            mapping = Mapping.from_yaml(resolved.mapping)
+            result = Pipeline(
+                source_uri=resolved.source_uri,
+                sink_uri=resolved.sink_uri,
+                mapping=mapping,
+                error_log=Path.cwd() / "errors.jsonl",
+            ).run()
+        except Exception as err:
+            self.call_from_thread(output.write, f"Error: {err}")
+            return
+        self.call_from_thread(
+            output.write,
+            format_run_summary(result.rows_in, result.rows_ok, result.rows_failed),
+        )

@@ -1,7 +1,13 @@
 from pathlib import Path
 
 from dataingest.appconfig import AppConfig, Destination, Job
-from dataingest.tui.commands import destination_label, job_detail, job_rows, parse_command
+from dataingest.tui.commands import (
+    destination_label,
+    format_run_summary,
+    job_detail,
+    job_rows,
+    parse_command,
+)
 
 
 def test_parse_quit() -> None:
@@ -65,3 +71,18 @@ fields:
 def test_job_detail_missing_mapping_is_friendly(tmp_path: Path) -> None:
     detail = job_detail(AppConfig(jobs={"bills": Job(mapping="nope.yml")}), tmp_path, "bills")
     assert "Could not load mapping" in detail
+
+
+def test_format_run_summary_clean() -> None:
+    assert format_run_summary(20, 20, 0) == "Done. 20 rows loaded."
+
+
+def test_format_run_summary_partial() -> None:
+    summary = format_run_summary(20, 18, 2)
+    assert "18" in summary
+    assert "2 failed" in summary
+    assert "errors.jsonl" in summary
+
+
+def test_format_run_summary_empty() -> None:
+    assert format_run_summary(0, 0, 0) == "No rows found in the file."

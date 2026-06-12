@@ -46,6 +46,14 @@ def destination_label(config: AppConfig) -> str:
     return f"{Path(sink).name} (sqlite)"
 
 
+def format_run_summary(rows_in: int, rows_ok: int, rows_failed: int) -> str:
+    if rows_in == 0:
+        return "No rows found in the file."
+    if rows_failed == 0:
+        return f"Done. {rows_ok} rows loaded."
+    return f"Done with problems. {rows_ok} loaded, {rows_failed} failed (see errors.jsonl)."
+
+
 def job_detail(config: AppConfig, base_dir: Path, name: str) -> str:
     job = config.jobs.get(name)
     if job is None:
