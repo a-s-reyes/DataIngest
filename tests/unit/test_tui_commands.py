@@ -1,5 +1,7 @@
+from pathlib import Path
+
 from dataingest.appconfig import AppConfig, Destination, Job
-from dataingest.tui.commands import destination_label, job_rows, parse_command
+from dataingest.tui.commands import destination_label, job_detail, job_rows, parse_command
 
 
 def test_parse_quit() -> None:
@@ -39,3 +41,27 @@ def test_destination_label_postgres_hides_credentials() -> None:
 
 def test_destination_label_none() -> None:
     assert destination_label(AppConfig()) == "not configured"
+
+
+def test_job_detail_includes_table_and_fields(tmp_path: Path) -> None:
+    (tmp_path / "m.yml").write_text(
+        """
+spec_version: 1
+name: bills
+source: { format: csv }
+target: { table: TaxBill, primary_key: id }
+fields:
+  id: { column: 0, type: str, required: true }
+  amount: { column: 1, type: decimal }
+""",
+        encoding="utf-8",
+    )
+    detail = job_detail(AppConfig(jobs={"bills": Job(mapping="m.yml")}), tmp_path, "bills")
+    assert "TaxBill" in detail
+    assert "id" in detail
+    assert "amount" in detail
+
+
+def test_job_detail_missing_mapping_is_friendly(tmp_path: Path) -> None:
+    detail = job_detail(AppConfig(jobs={"bills": Job(mapping="nope.yml")}), tmp_path, "bills")
+    assert "Could not load mapping" in detail
