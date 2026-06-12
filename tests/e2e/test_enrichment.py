@@ -1,67 +1,9 @@
 from pathlib import Path
 
-import pytest
 from sqlalchemy import create_engine, text
 
 from dataingest.config import Mapping
 from dataingest.pipeline import Pipeline
-from dataingest.transforms import Transform, build
-
-
-def _classify() -> Transform:
-    return build(
-        [
-            {
-                "classify": {
-                    "source": "Description",
-                    "target": "Type",
-                    "rules": [
-                        {"contains": ["fire", "acre"], "value": "FIRE_ACRE"},
-                        {"contains": "real", "value": "REAL_ESTATE"},
-                    ],
-                    "default": "OTHER",
-                }
-            }
-        ]
-    )[0]
-
-
-def test_classify_all_contains_must_match() -> None:
-    rec = _classify().apply({"Description": "Fire District Acreage"})
-    assert rec["Type"] == "FIRE_ACRE"
-
-
-def test_classify_single_contains() -> None:
-    rec = _classify().apply({"Description": "Real Estate Tax"})
-    assert rec["Type"] == "REAL_ESTATE"
-
-
-def test_classify_default_when_no_match() -> None:
-    rec = _classify().apply({"Description": "Mystery Levy"})
-    assert rec["Type"] == "OTHER"
-
-
-def test_classify_no_match_no_default_raises() -> None:
-    transform = build(
-        [{"classify": {"source": "d", "target": "t", "rules": [{"contains": "x", "value": "X"}]}}]
-    )[0]
-    with pytest.raises(ValueError, match="no classification rule matched"):
-        transform.apply({"d": "nope"})
-
-
-def test_lookup_hit_and_default() -> None:
-    transform = build(
-        [{"lookup": {"source": "t", "target": "id", "table": {"A": 1, "B": 2}, "default": 0}}]
-    )[0]
-    assert transform.apply({"t": "A"})["id"] == 1
-    assert transform.apply({"t": "Z"})["id"] == 0
-
-
-def test_lookup_miss_no_default_raises() -> None:
-    transform = build([{"lookup": {"source": "t", "target": "id", "table": {"A": 1}}}])[0]
-    with pytest.raises(ValueError, match="no lookup entry"):
-        transform.apply({"t": "Z"})
-
 
 _MAPPING = """
 spec_version: 1

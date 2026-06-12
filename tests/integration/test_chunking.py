@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from dataingest.config import Mapping
 from dataingest.pipeline import DEFAULT_CHUNK_SIZE, Pipeline
 
-from .conftest import MappingFixture
+from ..conftest import MappingFixture
 
 
 def _csv_uri(p: Path) -> str:

@@ -7,7 +7,7 @@ from dataingest.config import Mapping
 from dataingest.manifest import MANIFEST_TABLE_NAME, derive_status
 from dataingest.pipeline import Pipeline
 
-from .conftest import MappingFixture
+from ..conftest import MappingFixture
 
 
 def _csv_uri(p: Path) -> str:

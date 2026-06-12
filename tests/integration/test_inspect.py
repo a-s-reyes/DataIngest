@@ -10,7 +10,7 @@ from dataingest.inspect import (
 )
 from dataingest.pipeline import Pipeline
 
-from .conftest import MappingFixture
+from ..conftest import MappingFixture
 
 
 def _seed_sqlite(telemetry: MappingFixture, tmp_path: Path, runs: int = 1) -> Path:

@@ -5,7 +5,7 @@ import pytest
 from dataingest.config import Mapping
 from dataingest.errors import MappingError
 
-from .conftest import MappingFixture
+from ..conftest import MappingFixture
 
 
 def test_telemetry_mapping_loads(telemetry: MappingFixture) -> None:

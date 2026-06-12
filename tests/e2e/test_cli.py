@@ -10,7 +10,7 @@ from dataingest.cli import (
     app,
 )
 
-from .conftest import MappingFixture
+from ..conftest import MappingFixture
 
 runner = CliRunner()
 

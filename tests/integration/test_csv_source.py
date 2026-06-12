@@ -5,7 +5,7 @@ import pytest
 from dataingest.sources.csv import CsvSource
 from dataingest.uri import parse
 
-from .conftest import MappingFixture
+from ..conftest import MappingFixture
 
 
 def test_yields_rows_with_index_and_header_keys(telemetry: MappingFixture) -> None:

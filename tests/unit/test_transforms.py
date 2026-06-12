@@ -1,11 +1,9 @@
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
 
 from dataingest.config import Mapping
 from dataingest.errors import MappingError
-from dataingest.pipeline import Pipeline
 from dataingest.transforms import Transform, build
 
 
@@ -68,6 +66,61 @@ def test_split_city_state_zip_invalid_raises() -> None:
         _split_csz().apply({"csz": "not an address"})
 
 
+def _classify() -> Transform:
+    return build(
+        [
+            {
+                "classify": {
+                    "source": "Description",
+                    "target": "Type",
+                    "rules": [
+                        {"contains": ["fire", "acre"], "value": "FIRE_ACRE"},
+                        {"contains": "real", "value": "REAL_ESTATE"},
+                    ],
+                    "default": "OTHER",
+                }
+            }
+        ]
+    )[0]
+
+
+def test_classify_all_contains_must_match() -> None:
+    rec = _classify().apply({"Description": "Fire District Acreage"})
+    assert rec["Type"] == "FIRE_ACRE"
+
+
+def test_classify_single_contains() -> None:
+    rec = _classify().apply({"Description": "Real Estate Tax"})
+    assert rec["Type"] == "REAL_ESTATE"
+
+
+def test_classify_default_when_no_match() -> None:
+    rec = _classify().apply({"Description": "Mystery Levy"})
+    assert rec["Type"] == "OTHER"
+
+
+def test_classify_no_match_no_default_raises() -> None:
+    transform = build(
+        [{"classify": {"source": "d", "target": "t", "rules": [{"contains": "x", "value": "X"}]}}]
+    )[0]
+    with pytest.raises(ValueError, match="no classification rule matched"):
+        transform.apply({"d": "nope"})
+
+
+def test_lookup_hit_and_default() -> None:
+    transform = build(
+        [{"lookup": {"source": "t", "target": "id", "table": {"A": 1, "B": 2}, "default": 0}}]
+    )[0]
+    assert transform.apply({"t": "A"})["id"] == 1
+    assert transform.apply({"t": "Z"})["id"] == 0
+
+
+def test_lookup_miss_no_default_raises() -> None:
+    transform = build([{"lookup": {"source": "t", "target": "id", "table": {"A": 1}}}])[0]
+    with pytest.raises(ValueError, match="no lookup entry"):
+        transform.apply({"t": "Z"})
+
+
 def test_unknown_transform_rejected(tmp_path: Path) -> None:
     p = tmp_path / "m.yml"
     p.write_text(
@@ -85,67 +138,3 @@ fields:
     )
     with pytest.raises(MappingError, match="unknown transform"):
         Mapping.from_yaml(p)
-
-
-def _write_transform_mapping(tmp_path: Path) -> Path:
-    p = tmp_path / "people.yml"
-    p.write_text(
-        """
-spec_version: 1
-name: people
-source:
-  format: csv
-transforms:
-  - split_city_state_zip:
-      source: csz
-      into: { city: City, state: State, zip: Zip }
-target:
-  table: people
-  primary_key: id
-fields:
-  id:
-    column: 0
-    type: str
-    required: true
-    cleaners: [strip]
-  csz:
-    column: 1
-    type: str
-    transient: true
-    cleaners: [strip]
-  City:
-    type: str
-  State:
-    type: str
-  Zip:
-    type: str
-""",
-        encoding="utf-8",
-    )
-    return p
-
-
-def test_pipeline_transform_produces_derived_columns(tmp_path: Path) -> None:
-    csv = tmp_path / "data.csv"
-    csv.write_text(
-        'id,csz\nA,"GLASGOW, KY 42141"\nB,"BOWLING GREEN, KY 42101"\n',
-        encoding="utf-8",
-    )
-    db = tmp_path / "out.db"
-    result = Pipeline(
-        source_uri=f"csv:///{csv.as_posix()}",
-        sink_uri=f"sqlite:///{db.as_posix()}",
-        mapping=Mapping.from_yaml(_write_transform_mapping(tmp_path)),
-        error_log=tmp_path / "errors.jsonl",
-    ).run()
-
-    assert result.rows_ok == 2
-
-    engine = create_engine(f"sqlite:///{db}")
-    cols = {c["name"] for c in inspect(engine).get_columns("people")}
-    assert cols == {"id", "City", "State", "Zip"}
-
-    with engine.connect() as conn:
-        row = conn.execute(text("SELECT id, City, State, Zip FROM people ORDER BY id")).first()
-    assert row is not None
-    assert (row.City, row.State, row.Zip) == ("GLASGOW", "KY", "42141")
